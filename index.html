@@ -1,0 +1,3635 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고교학점제 시간표 시뮬레이터</title>
+<style>
+:root {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --border: #dde1e7;
+  --primary: #2563eb;
+  --primary-light: #eff6ff;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --warn: #d97706;
+  --warn-light: #fffbeb;
+  --success: #16a34a;
+  --success-light: #f0fdf4;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --radius: 8px;
+
+  --cat-korean: #7c3aed;
+  --cat-english: #0891b2;
+  --cat-math: #d97706;
+  --cat-pe: #16a34a;
+  --cat-rne: #db2777;
+  --cat-science: #2563eb;
+  --cat-humanities: #9333ea;
+  --cat-liberal: #64748b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* ===== LAYOUT ===== */
+#app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+#header { background: var(--primary); color: white; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+#header h1 { font-size: 18px; font-weight: 700; }
+#header .badge { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+#main { display: grid; grid-template-columns: 1fr 280px; grid-template-rows: auto 1fr; overflow: hidden; }
+#tabs { grid-column: 1/-1; background: var(--card); border-bottom: 1px solid var(--border); display: flex; gap: 2px; padding: 0 12px; }
+.tab-btn { padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; transition: all .2s; }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.tab-btn:hover:not(.active) { color: var(--text); background: var(--bg); }
+#content { overflow-y: auto; padding: 16px; }
+#sidebar { border-left: 1px solid var(--border); background: var(--card); overflow-y: auto; padding: 12px; }
+
+/* ===== PANELS ===== */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ===== CARDS ===== */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.card h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+
+/* ===== TIMETABLE GRID ===== */
+#timetable-wrap { overflow-x: auto; }
+.tt-grid { border-collapse: collapse; width: 100%; min-width: 500px; }
+.tt-grid th { background: #f8fafc; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--text-muted); border: 1px solid var(--border); text-align: center; }
+.tt-grid td { border: 1px solid var(--border); padding: 4px; height: 52px; vertical-align: top; cursor: pointer; transition: background .15s; }
+.tt-grid td:hover { background: var(--primary-light); }
+.tt-grid td.has-subject { cursor: pointer; }
+.tt-grid td.conflict-pair { background: var(--danger-light); outline: 2px solid var(--danger); }
+.tt-grid td.conflict-teacher { background: var(--warn-light); outline: 2px solid var(--warn); }
+.subject-chip { display: inline-flex; flex-direction: column; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; color: white; width: 100%; height: 100%; cursor: pointer; position: relative; }
+.subject-chip .chip-name { line-height: 1.2; }
+.subject-chip .chip-teacher { font-size: 10px; font-weight: 400; opacity: .8; margin-top: 2px; }
+.subject-chip .chip-remove { position: absolute; top: 2px; right: 4px; opacity: 0; font-size: 14px; line-height: 1; }
+.subject-chip:hover .chip-remove { opacity: 1; }
+.empty-cell { color: var(--text-muted); font-size: 11px; text-align: center; padding-top: 8px; }
+
+/* Category colors */
+.cat-korean    { background: var(--cat-korean); }
+.cat-english   { background: var(--cat-english); }
+.cat-math      { background: var(--cat-math); }
+.cat-pe        { background: var(--cat-pe); }
+.cat-rne       { background: var(--cat-rne); }
+.cat-science   { background: var(--cat-science); }
+.cat-humanities{ background: var(--cat-humanities); }
+.cat-liberal   { background: var(--cat-liberal); }
+
+/* ===== PALETTE ===== */
+#palette { }
+.palette-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; cursor: grab; border: 1px solid var(--border); background: white; transition: box-shadow .15s; }
+.palette-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+.palette-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.palette-item.assigned { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+
+/* ===== CONFLICTS BAR ===== */
+#conflict-bar { background: var(--danger-light); border: 1px solid var(--danger); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; display: none; }
+#conflict-bar.has-conflicts { display: block; }
+#conflict-bar h4 { color: var(--danger); font-size: 13px; margin-bottom: 6px; }
+.conflict-list { list-style: none; }
+.conflict-list li { font-size: 12px; padding: 2px 0; color: var(--danger); }
+.conflict-list li::before { content: '⚠ '; }
+
+/* ===== STATS BAR ===== */
+#stats-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.stat-card { flex: 1; min-width: 120px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
+.stat-card .stat-val { font-size: 22px; font-weight: 700; color: var(--primary); }
+.stat-card .stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.stat-card.stat-ok .stat-val { color: var(--success); }
+.stat-card.stat-bad .stat-val { color: var(--danger); }
+
+/* ===== SCENARIO TABLE ===== */
+#scenario-wrap { overflow-x: auto; }
+.sc-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.sc-table th { background: #f8fafc; padding: 7px 10px; border: 1px solid var(--border); text-align: left; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+.sc-table td { border: 1px solid var(--border); padding: 5px 10px; }
+.sc-table tr:hover td { background: var(--primary-light); }
+.sc-table .ok { color: var(--success); font-weight: 700; }
+.sc-table .fail { color: var(--danger); font-weight: 700; }
+.sc-table .sc-conflicts { color: var(--text-muted); font-size: 11px; }
+.sc-table tr.row-fail td { background: var(--danger-light); }
+.filter-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+.filter-row label { font-size: 12px; color: var(--text-muted); }
+select, input[type=number], input[type=text] { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+select:focus, input:focus { outline: 2px solid var(--primary); }
+
+/* ===== HOTSPOT ===== */
+.hotspot-list { list-style: none; }
+.hotspot-list li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.hotspot-bar-outer { flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+.hotspot-bar-inner { height: 100%; background: var(--danger); border-radius: 4px; }
+.hotspot-cnt { font-weight: 700; color: var(--danger); width: 40px; text-align: right; }
+
+/* ===== STUDENTS ===== */
+.stu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.stu-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--card); cursor: pointer; transition: box-shadow .15s; }
+.stu-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+.stu-card.stu-fail { border-color: var(--danger); background: var(--danger-light); }
+.stu-card.stu-ok { border-color: var(--success); }
+.stu-name { font-weight: 600; margin-bottom: 4px; }
+.stu-status { font-size: 11px; }
+.stu-status.ok { color: var(--success); }
+.stu-status.fail { color: var(--danger); }
+.stu-subjects { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+.stu-sub-badge { padding: 1px 6px; border-radius: 10px; font-size: 10px; color: white; font-weight: 500; }
+
+/* ===== MODAL ===== */
+#modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; }
+#modal-overlay.open { display: flex; }
+#modal { background: white; border-radius: 12px; padding: 20px; min-width: 340px; max-width: 500px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+#modal h3 { font-size: 16px; margin-bottom: 14px; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.modal-btn { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: white; cursor: pointer; font-size: 12px; font-weight: 600; text-align: left; transition: all .15s; }
+.modal-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.modal-btn.cat-korean    { border-left: 4px solid var(--cat-korean); }
+.modal-btn.cat-english   { border-left: 4px solid var(--cat-english); }
+.modal-btn.cat-math      { border-left: 4px solid var(--cat-math); }
+.modal-btn.cat-pe        { border-left: 4px solid var(--cat-pe); }
+.modal-btn.cat-rne       { border-left: 4px solid var(--cat-rne); }
+.modal-btn.cat-science   { border-left: 4px solid var(--cat-science); }
+.modal-btn.cat-humanities{ border-left: 4px solid var(--cat-humanities); }
+.modal-btn.cat-liberal   { border-left: 4px solid var(--cat-liberal); }
+.modal-btn.assigned { opacity: .5; pointer-events: none; }
+.modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); }
+.modal-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+.btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-ghost { background: none; border: 1px solid var(--border); color: var(--text); }
+.btn-ghost:hover { background: var(--bg); }
+.btn-success { background: var(--success); color: white; }
+.btn-success:hover { background: #15803d; }
+
+/* ===== EDIT PANEL ===== */
+.edit-section { margin-bottom: 16px; }
+.edit-section h4 { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.edit-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.edit-row label { font-size: 12px; color: var(--text-muted); min-width: 70px; }
+.edit-row input, .edit-row select { flex: 1; min-width: 0; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { padding: 2px 8px; border-radius: 10px; font-size: 11px; background: var(--primary-light); color: var(--primary); border: 1px solid #bfdbfe; display: flex; align-items: center; gap: 4px; }
+.tag .tag-remove { cursor: pointer; font-size: 13px; line-height: 1; }
+
+/* ===== SUGGEST ===== */
+.suggest-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; background: var(--card); }
+.suggest-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.suggest-swap { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.suggest-diff { font-size: 13px; font-weight: 700; }
+.suggest-diff.pos { color: var(--success); }
+.suggest-diff.neg { color: var(--danger); }
+
+/* ===== AUTO-GEN ===== */
+.ag-progress-wrap { margin-top: 10px; }
+.ag-progress-bar-outer { background: #e2e8f0; border-radius: 4px; height: 10px; overflow: hidden; margin-top: 4px; }
+.ag-progress-bar-inner { height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
+.ag-result-tt { border-collapse: collapse; width: 100%; font-size: 12px; }
+.ag-result-tt th { background: #f8fafc; padding: 6px 10px; border: 1px solid var(--border); text-align: center; font-weight: 600; }
+.ag-result-tt td { border: 1px solid var(--border); padding: 5px 8px; text-align: center; }
+
+/* ===== ALGO TABS ===== */
+.ag-algo-btn { font-size: 12px !important; padding: 6px 12px !important; }
+.ag-algo-btn.active { background: var(--primary) !important; color: white !important; border-color: var(--primary) !important; }
+.algo-opts { padding: 8px 0; }
+
+/* ===== CAPACITY HEATMAP ===== */
+.cap-heatmap { border-collapse: collapse; font-size: 12px; }
+.cap-heatmap th { padding: 6px 10px; background: #f8fafc; border: 1px solid var(--border); font-weight: 600; }
+.cap-heatmap td { padding: 6px 10px; border: 1px solid var(--border); text-align: center; font-weight: 600; min-width: 50px; }
+.cap-cell-ok { background: #dcfce7; color: #166534; }
+.cap-cell-partial { background: #fef9c3; color: #854d0e; }
+.cap-cell-bad { background: #fee2e2; color: #991b1b; }
+
+/* ===== STU EDIT ===== */
+.stu-pick-group { margin-bottom: 10px; }
+.stu-pick-group .group-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; }
+.stu-radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.stu-radio-label { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px; transition: all .15s; }
+.stu-radio-label:hover { border-color: var(--primary); background: var(--primary-light); }
+.stu-radio-label input { cursor: pointer; }
+.stu-cb-label { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px; transition: all .15s; }
+.stu-cb-label:hover { border-color: var(--primary); background: var(--primary-light); }
+.stu-cb-label input { cursor: pointer; }
+.stu-card-actions { display: flex; gap: 4px; margin-top: 6px; }
+
+/* ===== DETAIL MODAL ===== */
+.stu-detail-subjects { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.stu-detail-sub { padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: white; }
+.stu-detail-sub.conflict { outline: 3px solid var(--danger); }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+/* ===== UTIL ===== */
+.flex { display: flex; }
+.gap-8 { gap: 8px; }
+.mb-10 { margin-bottom: 10px; }
+.text-muted { color: var(--text-muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>📅 고교학점제 시간표 시뮬레이터</h1>
+    <span class="badge" id="hdr-assigned">배정 0/20</span>
+    <span class="badge" id="hdr-conflicts">충돌 0</span>
+    <span class="badge" id="hdr-sim-result" style="display:none"></span>
+    <div style="flex:1"></div>
+    <button class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4)" onclick="exportData()">💾 내보내기</button>
+    <label class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4);cursor:pointer">📂 가져오기<input type="file" accept=".json" style="display:none" onchange="importData(event)"></label>
+    <button class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4)" onclick="resetData()">↺ 초기화</button>
+  </div>
+  <div id="main">
+    <div id="tabs">
+      <button class="tab-btn active" data-panel="timetable">📋 시간표 배치</button>
+      <button class="tab-btn" data-panel="scenarios">🔬 시나리오 분석</button>
+      <button class="tab-btn" data-panel="bruteforce">🔎 전수 시간표 탐색</button>
+      <button class="tab-btn" data-panel="students">👥 학생 관리</button>
+      <button class="tab-btn" data-panel="suggest">💡 자동 개선 제안</button>
+      <button class="tab-btn" data-panel="autogen">🤖 자동 시간표 생성</button>
+      <button class="tab-btn" data-panel="edit">✏️ 데이터 편집</button>
+    </div>
+    <div id="content">
+
+      <!-- ===== TIMETABLE PANEL ===== -->
+      <div class="panel active" id="panel-timetable">
+        <div id="conflict-bar"><h4>⚠ 하드 제약 위반</h4><ul class="conflict-list" id="conflict-list"></ul></div>
+        <div id="timetable-wrap">
+          <table class="tt-grid" id="tt-table">
+            <thead>
+              <tr>
+                <th style="width:60px">교시</th>
+                <th>교실 A</th>
+                <th>교실 B</th>
+              </tr>
+            </thead>
+            <tbody id="tt-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== SCENARIO PANEL ===== -->
+      <div class="panel" id="panel-scenarios">
+        <div id="stats-bar">
+          <div class="stat-card" id="stat-total"><div class="stat-val" id="sv-total">-</div><div class="stat-lbl">전체 프로필</div></div>
+          <div class="stat-card stat-ok" id="stat-ok"><div class="stat-val" id="sv-ok">-</div><div class="stat-lbl">가능 (충돌 없음)</div></div>
+          <div class="stat-card stat-bad" id="stat-fail"><div class="stat-val" id="sv-fail">-</div><div class="stat-lbl">불가능</div></div>
+          <div class="stat-card" id="stat-rate"><div class="stat-val" id="sv-rate">-</div><div class="stat-lbl">가능률</div></div>
+        </div>
+        <div class="card">
+          <h3>충돌 핫스팟 (과목 쌍)</h3>
+          <ul class="hotspot-list" id="hotspot-list"></ul>
+        </div>
+        <div class="card">
+          <h3>시나리오 결과 테이블</h3>
+          <div class="filter-row">
+            <label>필터:</label>
+            <select id="sc-filter">
+              <option value="all">전체</option>
+              <option value="fail">불가능만</option>
+              <option value="ok">가능만</option>
+            </select>
+            <label>교양:</label>
+            <select id="sc-liberal">
+              <option value="all">전체</option>
+              <option value="교양1">교양1</option>
+              <option value="교양2">교양2</option>
+            </select>
+            <label>인문:</label>
+            <select id="sc-hum">
+              <option value="all">전체</option>
+              <option value="독서">독서</option>
+              <option value="기하">기하</option>
+              <option value="사회문화">사회문화</option>
+            </select>
+            <button class="btn btn-primary" onclick="runSimulation()">▶ 시뮬레이션 실행</button>
+            <button class="btn btn-ghost" onclick="showConstraintReport()">📊 충돌 불가피성 리포트</button>
+            <button class="btn btn-ghost" onclick="showScienceStrategy()">🔬 과학 자유선택 전략</button>
+          </div>
+          <div id="scenario-wrap">
+            <p class="text-muted" style="padding:20px 0">시뮬레이션 실행 버튼을 눌러주세요.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STUDENTS PANEL ===== -->
+      <div class="panel" id="panel-students">
+        <div class="card">
+          <h3>학생 관리</h3>
+          <div class="filter-row">
+            <button class="btn btn-primary" onclick="openAddStudent()">+ 학생 추가</button>
+            <button class="btn btn-ghost" onclick="checkAllStudents()">✅ 전체 검증</button>
+            <div style="flex:1"></div>
+            <span class="text-muted">랜덤 생성:</span>
+            <label style="font-size:12px;color:var(--text-muted)">N=</label>
+            <input type="number" id="stu-n" value="29" min="1" max="1920" style="width:60px">
+            <label style="font-size:12px;color:var(--text-muted)">시드=</label>
+            <input type="number" id="stu-seed" value="42" style="width:60px">
+            <button class="btn btn-ghost" onclick="generateStudents()">🎲 자동 생성</button>
+            <button class="btn btn-danger" onclick="clearStudents()" title="전체 삭제">🗑</button>
+          </div>
+        </div>
+        <div id="stu-summary" class="mb-10" style="display:none">
+          <div id="stats-bar-stu" class="flex gap-8" style="flex-wrap:wrap;margin-bottom:10px"></div>
+        </div>
+        <div class="stu-grid" id="stu-grid"></div>
+      </div>
+
+      <!-- ===== SUGGEST PANEL ===== -->
+      <div class="panel" id="panel-suggest">
+        <div class="card">
+          <h3>자동 개선 제안 (Hill Climbing)</h3>
+          <p class="text-muted mb-10">현재 시간표에서 두 슬롯을 교환하여 학생 충돌 수를 최소화하는 상위 3가지 대안을 제시합니다.</p>
+          <div class="filter-row">
+            <label>반복:</label>
+            <input type="number" id="hc-iter" value="500" min="50" max="5000" style="width:80px">
+            <button class="btn btn-primary" onclick="runSuggest()">🔍 개선 탐색</button>
+          </div>
+        </div>
+        <div id="suggest-results"></div>
+      </div>
+
+      <!-- ===== AUTO-GEN PANEL ===== -->
+      <div class="panel" id="panel-autogen">
+        <div class="card">
+          <h3>🤖 학생 과목 기반 자동 시간표 생성</h3>
+          <p class="text-muted mb-10">학생들의 과목 선택을 바탕으로, 충돌을 최소화하는 시간표를 자동으로 탐색합니다.</p>
+          
+          <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+            <button class="btn btn-ghost ag-algo-btn active" data-algo="sa" onclick="switchAlgo('sa')">🔥 Simulated Annealing</button>
+            <button class="btn btn-ghost ag-algo-btn" data-algo="graph" onclick="switchAlgo('graph')">🎨 Graph Coloring</button>
+            <button class="btn btn-ghost ag-algo-btn" data-algo="csp" onclick="switchAlgo('csp')">🧩 CSP 백트래킹</button>
+            <button class="btn btn-ghost ag-algo-btn" data-algo="capacity" onclick="switchAlgo('capacity')">📊 용량 시뮬레이션</button>
+          </div>
+
+          <!-- SA Options -->
+          <div class="algo-opts" id="opts-sa">
+            <p class="text-muted" style="font-size:11px;margin-bottom:8px">Simulated Annealing: 랜덤 교환으로 점진적 최적화. Graph Coloring 초기해 사용 가능.</p>
+            <div class="filter-row">
+              <label>재시작:</label>
+              <input type="number" id="ag-restarts" value="15" min="1" max="100" style="width:65px">
+              <label>반복/회:</label>
+              <input type="number" id="ag-iter" value="5000" min="500" max="30000" style="width:80px">
+              <label><input type="checkbox" id="ag-use-greedy" checked> Greedy 초기해</label>
+              <button class="btn btn-primary" id="ag-run-btn" onclick="runAutoGen()">🚀 SA 실행</button>
+            </div>
+          </div>
+
+          <!-- Graph Coloring Options -->
+          <div class="algo-opts" id="opts-graph" style="display:none">
+            <p class="text-muted" style="font-size:11px;margin-bottom:8px">Graph Coloring: 학생 충돌 관계를 그래프로 모델링 후, 탐욕적 착색 알고리즘으로 배치합니다. 가장 빠르지만 최적해를 보장하진 않습니다.</p>
+            <div class="filter-row">
+              <label>정렬 전략:</label>
+              <select id="gc-strategy">
+                <option value="degree">차수 우선 (Largest Degree First)</option>
+                <option value="saturation">채도 우선 (DSatur)</option>
+                <option value="weight">가중치 우선 (Weighted)</option>
+              </select>
+              <button class="btn btn-primary" onclick="runGraphColoring()">🎨 Graph Coloring 실행</button>
+            </div>
+          </div>
+
+          <!-- CSP Options -->
+          <div class="algo-opts" id="opts-csp" style="display:none">
+            <p class="text-muted" style="font-size:11px;margin-bottom:8px">CSP 백트래킹: 모든 제약을 만족하는 정확한 해를 탐색합니다. 해가 존재하면 반드시 찾지만, 없으면 "불가능"을 증명합니다. 규모가 크면 시간이 걸릴 수 있습니다.</p>
+            <div class="filter-row">
+              <label>시간 제한(초):</label>
+              <input type="number" id="csp-timeout" value="10" min="1" max="60" style="width:65px">
+              <label><input type="checkbox" id="csp-all-students" checked> 모든 학생 충돌 0</label>
+              <button class="btn btn-primary" onclick="runCSP()">🧩 CSP 탐색 시작</button>
+            </div>
+          </div>
+
+          <!-- Capacity Simulation Options -->
+          <div class="algo-opts" id="opts-capacity" style="display:none">
+            <p class="text-muted" style="font-size:11px;margin-bottom:8px">용량 시뮬레이션: 교실 수와 교시 수를 변화시키며 충돌 0을 달성할 수 있는 최소 자원을 분석합니다. "근본적으로 해결 가능한가?"에 대한 답을 제공합니다.</p>
+            <div class="filter-row">
+              <label>교실 최대:</label>
+              <input type="number" id="cap-max-rooms" value="5" min="2" max="10" style="width:60px">
+              <label>교시 최대:</label>
+              <input type="number" id="cap-max-periods" value="15" min="10" max="20" style="width:60px">
+              <button class="btn btn-primary" onclick="runCapacitySim()">📊 용량 분석 실행</button>
+            </div>
+          </div>
+
+          <div id="ag-progress" class="ag-progress-wrap" style="display:none">
+            <div style="font-size:12px;color:var(--text-muted)" id="ag-progress-text">탐색 중...</div>
+            <div class="ag-progress-bar-outer"><div class="ag-progress-bar-inner" id="ag-progress-bar" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div id="ag-results"></div>
+      </div>
+
+      <!-- ===== BRUTE FORCE PANEL ===== -->
+      <div class="panel" id="panel-bruteforce">
+        <div class="card">
+          <h3>🔎 전수 시간표 시나리오 분석</h3>
+          <p class="text-muted mb-10">하드 제약(교사/쌍)을 만족하는 모든 시간표 배치를 생성한 뒤, 각 배치에 대해 전체 학생 선택 시나리오를 분석합니다. 시나리오 가능률(충돌 없는 프로필 비율)로 순위를 매깁니다.</p>
+          <div class="filter-row">
+            <label>탐색 수:</label>
+            <input type="number" id="bf-count" value="5000" min="100" max="100000" style="width:90px">
+            <label>방식:</label>
+            <select id="bf-method">
+              <option value="greedy" selected>Greedy + 랜덤 혼합</option>
+              <option value="random">완전 랜덤</option>
+              <option value="systematic">체계적 순열</option>
+            </select>
+            <button class="btn btn-primary" id="bf-run-btn" onclick="runBruteForce()">🚀 전수 분석 시작</button>
+            <button class="btn btn-danger" id="bf-stop-btn" style="display:none" onclick="stopBruteForce()">⏹ 중단</button>
+          </div>
+          <div id="bf-progress" style="display:none;margin-top:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)">
+              <span id="bf-progress-text">탐색 중...</span>
+              <span id="bf-progress-stats"></span>
+            </div>
+            <div class="ag-progress-bar-outer" style="margin-top:4px"><div class="ag-progress-bar-inner" id="bf-progress-bar" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div id="bf-results"></div>
+      </div>
+
+      <!-- ===== EDIT PANEL ===== -->
+      <div class="panel" id="panel-edit">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="card">
+            <h3>과목 편집</h3>
+            <div id="edit-subjects"></div>
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="openAddSubject()">+ 과목 추가</button>
+          </div>
+          <div class="card">
+            <h3>교사 편집</h3>
+            <div id="edit-teachers"></div>
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="openAddTeacher()">+ 교사 추가</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>선택 규칙 편집</h3>
+          <div id="edit-rules"></div>
+          <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="openAddRule()">+ 선택 규칙 추가</button>
+        </div>
+        <div class="card">
+          <h3>분반 그룹 관리</h3>
+          <div id="edit-sections"></div>
+          <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="openAddSection()">+ 분반 그룹 추가</button>
+        </div>
+        <div class="card">
+          <h3>쌍 제약 편집 (반드시 다른 교시)</h3>
+          <div id="edit-pairs"></div>
+          <button class="btn btn-ghost" style="margin-top:8px" onclick="openAddPair()">+ 쌍 추가</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="card">
+            <h3>교실/교시 조정</h3>
+            <div id="edit-structure"></div>
+          </div>
+          <div class="card">
+            <h3>교사별 시수 현황 (1슬롯 = 3시수)</h3>
+            <div id="edit-teacher-hours"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SIDEBAR ===== -->
+    <div id="sidebar">
+      <div class="card" style="margin-bottom:10px">
+        <h3>미배정 과목</h3>
+        <div id="palette"></div>
+      </div>
+      <div class="card">
+        <h3>배정 현황</h3>
+        <div id="assign-status" style="font-size:12px;color:var(--text-muted)">-</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// =====================================================
+// DATA SCHEMA & INITIAL DATA
+// =====================================================
+
+const DEFAULT_DATA = {
+  subjects: [
+    { id: 'kor1',  name: '국어1',   teacherId: 't_kor',  category: 'korean',      pairId: 'kor2' },
+    { id: 'kor2',  name: '국어2',   teacherId: 't_kor',  category: 'korean',      pairId: 'kor1' },
+    { id: 'eng1',  name: '영어1',   teacherId: 't_eng',  category: 'english',     pairId: 'eng2' },
+    { id: 'eng2',  name: '영어2',   teacherId: 't_eng',  category: 'english',     pairId: 'eng1' },
+    { id: 'mat1',  name: '대수1',   teacherId: 't_mat',  category: 'math',        pairId: 'mat2' },
+    { id: 'mat2',  name: '대수2',   teacherId: 't_mat',  category: 'math',        pairId: 'mat1' },
+    { id: 'rne1',  name: 'R&E1',    teacherId: 't_sciA', category: 'rne',         pairId: 'rne2' },
+    { id: 'rne2',  name: 'R&E2',    teacherId: 't_sciB', category: 'rne',         pairId: 'rne1' },
+    { id: 'pe1',   name: '체육1',   teacherId: 't_pe',   category: 'pe',          pairId: 'pe2' },
+    { id: 'pe2',   name: '체육2',   teacherId: 't_pe',   category: 'pe',          pairId: 'pe1' },
+    { id: 'phy',   name: '물리',    teacherId: 't_sciA', category: 'science',     pairId: null },
+    { id: 'che',   name: '화학',    teacherId: 't_sciB', category: 'science',     pairId: null },
+    { id: 'bio',   name: '생물',    teacherId: 't_sciC', category: 'science',     pairId: null },
+    { id: 'ear',   name: '지구과학',teacherId: 't_sciD', category: 'science',     pairId: null },
+    { id: 'inf',   name: '정보',    teacherId: 't_inf', category: 'science',     pairId: null },
+    { id: 'read',  name: '독서',    teacherId: 't_kor2',  category: 'humanities',  pairId: null },
+    { id: 'geo',   name: '기하',    teacherId: 't_mat2',  category: 'math',        pairId: null },
+    { id: 'soc',   name: '사회문화',teacherId: 't_soc',  category: 'humanities',  pairId: null },
+    { id: 'lib1',  name: '교양1',   teacherId: 't_sciC',  category: 'liberal',     pairId: null },
+    { id: 'lib2',  name: '교양2',   teacherId: 't_sciD',  category: 'liberal',     pairId: null },
+  ],
+  teachers: [
+    { id: 't_kor',  name: '국어교사1',  subjectIds: ['kor1','kor2'] },
+    { id: 't_kor2',  name: '국어교사2',  subjectIds: ['read'] },
+    { id: 't_eng',  name: '영어교사',  subjectIds: ['eng1','eng2'] },
+    { id: 't_mat',  name: '수학교사1',  subjectIds: ['mat1','mat2'] },
+    { id: 't_mat2',  name: '수학교사2',  subjectIds: ['geo'] },
+    { id: 't_pe',   name: '체육교사',  subjectIds: ['pe1','pe2'] },
+    { id: 't_sciA', name: '과학교사A', subjectIds: ['phy','rne1'] },
+    { id: 't_sciB', name: '과학교사B', subjectIds: ['che','rne2'] },
+    { id: 't_sciC', name: '과학교사C', subjectIds: ['bio', 'lib1'] },
+    { id: 't_sciD', name: '과학교사D', subjectIds: ['ear', 'lib2'] },
+    { id: 't_inf', name: '정보교사', subjectIds: ['inf'] },
+    { id: 't_soc', name: '사회교사', subjectIds: ['soc'] },
+  ],
+  classrooms: [
+    { id: 'rm_a', name: '교실 A' },
+    { id: 'rm_b', name: '교실 B' },
+  ],
+  // slots[period-1][classroomIdx] = subjectId | null
+  // slots: 10 periods × 2 classrooms
+  slots: Array.from({length:10}, () => [null, null]),
+  // Pair constraints: [subjectId, subjectId] must be different periods
+  pairConstraints: [
+    ['kor1','kor2'],
+    ['eng1','eng2'],
+    ['mat1','mat2'],
+    ['pe1','pe2'],
+    ['rne1','rne2'],
+  ],
+  // Choice rules
+  choiceRules: [
+    { id: 'r_liberal',   label: '교양 택1',         options: ['lib1','lib2'],              count: 1 },
+    { id: 'r_science',   label: '과학 택3',          options: ['phy','che','bio','ear','inf'], count: 3 },
+    { id: 'r_hum',       label: '인문/수학 택1',     options: ['read','geo','soc'],          count: 1 },
+  ],
+  // Section groups (분반): 학생은 각 그룹에서 1개를 이수하되, 어느 분반인지는 시간표에 따라 유연하게 결정
+  sectionGroups: [
+    { id: 'g_kor', label: '국어',  options: ['kor1','kor2'] },
+    { id: 'g_eng', label: '영어',  options: ['eng1','eng2'] },
+    { id: 'g_mat', label: '수학',  options: ['mat1','mat2'] },
+    { id: 'g_pe',  label: '체육',  options: ['pe1','pe2'] },
+    { id: 'g_rne', label: 'R&E',   options: ['rne1','rne2'] },
+  ],
+  // Legacy compatibility
+  pairGroups: [
+    { id: 'g_kor', label: '국어',  options: ['kor1','kor2'] },
+    { id: 'g_eng', label: '영어',  options: ['eng1','eng2'] },
+    { id: 'g_mat', label: '수학',  options: ['mat1','mat2'] },
+    { id: 'g_pe',  label: '체육',  options: ['pe1','pe2'] },
+    { id: 'g_rne', label: 'R&E',   options: ['rne1','rne2'] },
+  ],
+  students: [],
+};
+
+// =====================================================
+// STATE
+// =====================================================
+let STATE = loadState();
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('school_sim_v3');
+    if (saved) {
+      const state = JSON.parse(saved);
+      // Ensure sectionGroups exists (backward compat)
+      if (!state.sectionGroups && state.pairGroups) {
+        state.sectionGroups = JSON.parse(JSON.stringify(state.pairGroups));
+      }
+      if (!state.sectionGroups) state.sectionGroups = [];
+      if (!state.choiceRules) state.choiceRules = [];
+      if (!state.pairConstraints) state.pairConstraints = [];
+      if (!state.classrooms) state.classrooms = [{id:'rm_a',name:'교실 A'},{id:'rm_b',name:'교실 B'}];
+      if (!state.slots) state.slots = Array.from({length:10}, () => Array(state.classrooms.length).fill(null));
+      return state;
+    }
+  } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
+function saveState() {
+  localStorage.setItem('school_sim_v3', JSON.stringify(STATE));
+}
+function resetData() {
+  if (!confirm('모든 데이터를 초기화하시겠습니까?')) return;
+  STATE = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  saveState();
+  renderAll();
+}
+function exportData() {
+  const blob = new Blob([JSON.stringify(STATE, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'school_timetable.json';
+  a.click();
+}
+function importData(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      STATE = JSON.parse(ev.target.result);
+      saveState();
+      renderAll();
+      alert('가져오기 완료!');
+    } catch(err) { alert('올바른 JSON 파일이 아닙니다.'); }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+}
+
+// =====================================================
+// HELPERS
+// =====================================================
+function subjectById(id) { return STATE.subjects.find(s => s.id === id); }
+function teacherById(id) { return STATE.teachers.find(t => t.id === id); }
+function catColor(cat) {
+  const map = { korean:'#7c3aed', english:'#0891b2', math:'#d97706', pe:'#16a34a',
+                rne:'#db2777', science:'#2563eb', humanities:'#9333ea', liberal:'#64748b' };
+  return map[cat] || '#64748b';
+}
+function catLabel(cat) {
+  const map = { korean:'국어', english:'영어', math:'수학', pe:'체육', rne:'R&E',
+                science:'과학', humanities:'인문', liberal:'교양' };
+  return map[cat] || cat;
+}
+
+// Get period of a subject in current timetable. Returns null if unassigned.
+function periodOf(subjectId) {
+  for (let p = 0; p < STATE.slots.length; p++) {
+    for (let c = 0; c < (STATE.slots[p]?.length || 0); c++) {
+      if (STATE.slots[p][c] === subjectId) return p + 1;
+    }
+  }
+  return null;
+}
+
+// Get all assigned subject ids
+function assignedSubjects() {
+  return STATE.slots.flat().filter(Boolean);
+}
+
+// =====================================================
+// CONSTRAINT VALIDATION
+// =====================================================
+function validateHardConstraints() {
+  const violations = [];
+  // Pair constraints
+  for (const [a, b] of STATE.pairConstraints) {
+    const pa = periodOf(a), pb = periodOf(b);
+    if (pa !== null && pb !== null && pa === pb) {
+      const sa = subjectById(a), sb = subjectById(b);
+      violations.push({ type: 'pair', subjects: [a, b], period: pa,
+        msg: `${sa.name} ↔ ${sb.name} 같은 교시 (${pa}교시)` });
+    }
+  }
+  // Teacher constraints
+  for (const teacher of STATE.teachers) {
+    const periods = {};
+    for (const sid of teacher.subjectIds) {
+      const p = periodOf(sid);
+      if (p !== null) {
+        if (periods[p]) {
+          const s1 = subjectById(periods[p]), s2 = subjectById(sid);
+          violations.push({ type: 'teacher', teacherId: teacher.id, subjects: [periods[p], sid], period: p,
+            msg: `[${teacher.name}] ${s1.name} ↔ ${s2.name} 같은 교시 (${p}교시)` });
+        } else { periods[p] = sid; }
+      }
+    }
+  }
+  return violations;
+}
+
+// Check if a student profile (array of subjectIds) can be scheduled
+// For section groups, tries all combinations and picks the one with fewest conflicts
+// Returns { conflicts: [{a, b, period}], bestSections: [chosen section ids] }
+function checkProfileWithSections(subjectIds) {
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  
+  // Separate fixed subjects from section-group subjects
+  const allSectionIds = new Set(sectionGroups.flatMap(g => g.options));
+  const fixedSubjects = subjectIds.filter(s => !allSectionIds.has(s));
+  
+  // Determine which section groups this student participates in
+  const studentSectionGroups = [];
+  for (const g of sectionGroups) {
+    const hasAny = g.options.some(opt => subjectIds.includes(opt));
+    if (hasAny) studentSectionGroups.push(g);
+  }
+  
+  // Generate all combinations of section choices
+  // Each group contributes options.length choices, total = product of all group sizes
+  function generateSectionCombos(groups) {
+    if (groups.length === 0) return [[]];
+    let combos = [[]];
+    for (const g of groups) {
+      const next = [];
+      for (const prev of combos)
+        for (const opt of g.options)
+          next.push([...prev, opt]);
+      combos = next;
+    }
+    return combos;
+  }
+  
+  const sectionCombos = generateSectionCombos(studentSectionGroups);
+  
+  let bestConflicts = null;
+  let bestSections = [];
+  
+  for (const combo of sectionCombos) {
+    const fullSubjects = [...fixedSubjects, ...combo];
+    const conflicts = checkProfileRaw(fullSubjects);
+    if (bestConflicts === null || conflicts.length < bestConflicts.length) {
+      bestConflicts = conflicts;
+      bestSections = combo;
+      if (conflicts.length === 0) break; // perfect, no need to search further
+    }
+  }
+  
+  return { conflicts: bestConflicts || [], bestSections, fullSubjects: [...fixedSubjects, ...bestSections] };
+}
+
+// Raw conflict check (no section optimization)
+function checkProfileRaw(subjectIds) {
+  const conflicts = [];
+  const periodMap = {}; // period -> [subjectIds]
+  for (const sid of subjectIds) {
+    const p = periodOf(sid);
+    if (p === null) continue;
+    if (!periodMap[p]) periodMap[p] = [];
+    periodMap[p].push(sid);
+  }
+  for (const [p, sids] of Object.entries(periodMap)) {
+    if (sids.length > 1) {
+      for (let i = 0; i < sids.length; i++)
+        for (let j = i+1; j < sids.length; j++)
+          conflicts.push({ a: sids[i], b: sids[j], period: parseInt(p) });
+    }
+  }
+  return conflicts;
+}
+
+// Legacy wrapper - now uses section-aware check
+function checkProfile(subjectIds) {
+  return checkProfileWithSections(subjectIds).conflicts;
+}
+
+// =====================================================
+// SCENARIO GENERATION
+// =====================================================
+function combinations(arr, k) {
+  if (k === 0) return [[]];
+  if (arr.length < k) return [];
+  const [first, ...rest] = arr;
+  return [
+    ...combinations(rest, k-1).map(c => [first, ...c]),
+    ...combinations(rest, k),
+  ];
+}
+
+function generateAllProfiles() {
+  const { choiceRules, sectionGroups, pairGroups } = STATE;
+  const groups = sectionGroups || pairGroups || [];
+  
+  // Build map: subjectId -> sectionGroup it belongs to
+  const sectionMap = {}; // subjectId -> group
+  for (const g of groups) {
+    for (const opt of g.options) sectionMap[opt] = g;
+  }
+
+  // For each choice rule, collapse section group members into one representative
+  // e.g., if rule has [phy_s1, phy_s2, che, bio] and phy_s1/phy_s2 are in same group,
+  // treat as [phy_s1, che, bio] (just one representative per group)
+  function dedupeRuleOptions(options) {
+    const seen = new Set();
+    const result = [];
+    for (const opt of options) {
+      const g = sectionMap[opt];
+      if (g) {
+        if (seen.has(g.id)) continue; // skip duplicate section group member
+        seen.add(g.id);
+      }
+      result.push(opt);
+    }
+    return result;
+  }
+
+  // elective combos (선택 과목 조합)
+  const electiveCombos = [[[]]]; // start with one empty
+  for (const rule of choiceRules) {
+    const dedupedOptions = dedupeRuleOptions(rule.options);
+    const picks = combinations(dedupedOptions, Math.min(rule.count, dedupedOptions.length));
+    const prev = electiveCombos[electiveCombos.length - 1];
+    const next = [];
+    for (const p of prev)
+      for (const pick of picks)
+        next.push([...p, ...pick]);
+    electiveCombos.push(next);
+  }
+  const electives = electiveCombos[electiveCombos.length - 1];
+
+  // For section groups NOT already represented in electives, add placeholders
+  // (e.g., 국어/영어/수학/체육/R&E section groups are mandatory, not in choice rules)
+  const electiveSubIds = new Set(electives.length > 0 ? electives[0] : []);
+  // Actually re-check: gather all subject IDs that appear in any elective combo
+  const allElectiveIds = new Set(electives.flatMap(e => e));
+  
+  const sectionPlaceholders = [];
+  for (const g of groups) {
+    // If no member of this group appears in any choice rule, add a placeholder
+    const inChoiceRule = g.options.some(opt => {
+      return choiceRules.some(r => r.options.includes(opt));
+    });
+    if (!inChoiceRule) {
+      sectionPlaceholders.push(g.options[0]);
+    }
+  }
+
+  // full profiles = elective combos × 1 (sections are flexible)
+  const profiles = [];
+  for (const elec of electives) {
+    profiles.push({ subjects: [...elec, ...sectionPlaceholders] });
+  }
+  return profiles;
+}
+
+// Generate all profiles with explicit section combos (for backward compat / detailed analysis)
+function generateAllProfilesExpanded() {
+  const { choiceRules, sectionGroups, pairGroups } = STATE;
+  const groups = sectionGroups || pairGroups || [];
+  
+  const electiveCombos = [[[]]];
+  for (const rule of choiceRules) {
+    const picks = combinations(rule.options, rule.count);
+    const prev = electiveCombos[electiveCombos.length - 1];
+    const next = [];
+    for (const p of prev)
+      for (const pick of picks)
+        next.push([...p, ...pick]);
+    electiveCombos.push(next);
+  }
+  const electives = electiveCombos[electiveCombos.length - 1];
+
+  let pairCombos = [[]];
+  for (const g of groups) {
+    const next = [];
+    for (const prev of pairCombos)
+      for (const opt of g.options)
+        next.push([...prev, opt]);
+    pairCombos = next;
+  }
+
+  const profiles = [];
+  for (const elec of electives) {
+    for (const pairs of pairCombos) {
+      profiles.push({ subjects: [...elec, ...pairs] });
+    }
+  }
+  return profiles;
+}
+
+// seeded pseudo-random
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+function generateStudents() {
+  const n = parseInt(document.getElementById('stu-n').value) || 29;
+  const seed = parseInt(document.getElementById('stu-seed').value) || 42;
+  const allProfiles = generateAllProfiles(); // now only elective combos (분반 유연)
+  const rand = seededRandom(seed);
+
+  // Shuffle & sample
+  const shuffled = [...allProfiles];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // If more students needed than unique profiles, allow repeats
+  const students = [];
+  for (let i = 0; i < n; i++) {
+    const profile = shuffled[i % shuffled.length];
+    students.push({
+      id: `stu_${i+1}`,
+      name: `학생 ${i+1}`,
+      subjects: [...profile.subjects],
+    });
+  }
+
+  STATE.students = students;
+  saveState();
+  renderStudents();
+  checkAllStudents();
+}
+
+// =====================================================
+// SIMULATION
+// =====================================================
+let lastSimResult = null;
+
+function runSimulation() {
+  const allProfiles = generateAllProfiles();
+  const results = allProfiles.map(p => {
+    const conflicts = checkProfile(p.subjects);
+    return { profile: p, ok: conflicts.length === 0, conflicts };
+  });
+  lastSimResult = results;
+
+  // stats
+  const total = results.length;
+  const ok = results.filter(r => r.ok).length;
+  document.getElementById('sv-total').textContent = total;
+  document.getElementById('sv-ok').textContent = ok;
+  document.getElementById('sv-fail').textContent = total - ok;
+  document.getElementById('sv-rate').textContent = Math.round(ok/total*100) + '%';
+
+  // hotspot: count conflict pairs
+  const pairCount = {};
+  for (const r of results) {
+    for (const c of r.conflicts) {
+      const key = [c.a, c.b].sort().join('|');
+      pairCount[key] = (pairCount[key] || 0) + 1;
+    }
+  }
+  const sorted = Object.entries(pairCount).sort((a,b) => b[1]-a[1]).slice(0,10);
+  const maxCnt = sorted[0]?.[1] || 1;
+  const hotspotEl = document.getElementById('hotspot-list');
+  if (sorted.length === 0) {
+    hotspotEl.innerHTML = '<li style="color:var(--success);padding:8px 0">충돌 없음! 완벽한 시간표입니다 🎉</li>';
+  } else {
+    hotspotEl.innerHTML = sorted.map(([key, cnt]) => {
+      const [a, b] = key.split('|');
+      const sa = subjectById(a), sb = subjectById(b);
+      const w = Math.round(cnt/maxCnt*100);
+      return `<li>
+        <span style="min-width:120px;font-weight:600">${sa?.name||a} ↔ ${sb?.name||b}</span>
+        <div class="hotspot-bar-outer"><div class="hotspot-bar-inner" style="width:${w}%"></div></div>
+        <span class="hotspot-cnt">${cnt}</span>
+      </li>`;
+    }).join('');
+  }
+
+  // update header
+  document.getElementById('hdr-sim-result').style.display = '';
+  document.getElementById('hdr-sim-result').textContent = `시나리오 ${ok}/${total} 가능 (${Math.round(ok/total*100)}%)`;
+
+  // render table
+  renderScenarioTable(results);
+}
+
+function renderScenarioTable(results) {
+  const filter = document.getElementById('sc-filter').value;
+  const liberal = document.getElementById('sc-liberal').value;
+  const hum = document.getElementById('sc-hum').value;
+
+  let rows = results;
+  if (filter === 'fail') rows = rows.filter(r => !r.ok);
+  if (filter === 'ok') rows = rows.filter(r => r.ok);
+  if (liberal !== 'all') rows = rows.filter(r => r.profile.subjects.some(s => subjectById(s)?.name === liberal));
+  if (hum !== 'all') rows = rows.filter(r => r.profile.subjects.some(s => subjectById(s)?.name === hum));
+
+  const wrap = document.getElementById('scenario-wrap');
+  if (rows.length === 0) { wrap.innerHTML = '<p class="text-muted" style="padding:10px">해당하는 결과 없음</p>'; return; }
+
+  const sciSubjects = STATE.choiceRules.find(r=>r.id==='r_science')?.options || [];
+  const sciNames = sciSubjects.map(id => subjectById(id)?.name || id);
+
+  const thead = `<tr>
+    <th>#</th>
+    <th>결과</th>
+    <th>교양</th>
+    <th>인문/수학</th>
+    <th>과학 (택3)</th>
+    <th>충돌 내용</th>
+  </tr>`;
+
+  const tbody = rows.slice(0, 500).map((r, i) => {
+    const liberal = r.profile.subjects.find(s => subjectById(s)?.category === 'liberal');
+    const hum = r.profile.subjects.find(s => ['read','geo','soc'].includes(s));
+    const sci = r.profile.subjects.filter(s => sciSubjects.includes(s)).map(s => subjectById(s)?.name).join(', ');
+    const conflictStr = r.conflicts.map(c => `${subjectById(c.a)?.name}↔${subjectById(c.b)?.name}(${c.period}교시)`).join(' / ');
+    return `<tr class="${r.ok?'':'row-fail'}">
+      <td>${i+1}</td>
+      <td class="${r.ok?'ok':'fail'}">${r.ok?'✅':'❌'}</td>
+      <td>${subjectById(liberal)?.name||'-'}</td>
+      <td>${subjectById(hum)?.name||'-'}</td>
+      <td class="sc-conflicts">${sci}</td>
+      <td class="sc-conflicts">${conflictStr||'-'}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<p class="text-muted mb-10" style="font-size:11px">표시: ${Math.min(rows.length,500)}/${rows.length}개 (최대 500행 표시) · 분반(국어/영어/수학/체육/R&E)은 자동 최적 배정됨</p>
+  <div style="overflow-x:auto;max-height:60vh;overflow-y:auto"><table class="sc-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+}
+
+// =====================================================
+// STUDENT RENDERING
+// =====================================================
+function checkAllStudents() {
+  const students = STATE.students;
+  if (!students.length) { alert('먼저 학생을 생성하세요.'); return; }
+
+  let ok = 0;
+  const stuWithResults = students.map(s => {
+    const conflicts = checkProfile(s.subjects);
+    if (!conflicts.length) ok++;
+    return { ...s, conflicts };
+  });
+
+  document.getElementById('stu-summary').style.display = '';
+  const bar = document.getElementById('stats-bar-stu');
+  bar.innerHTML = `
+    <div class="stat-card"><div class="stat-val">${students.length}</div><div class="stat-lbl">전체 학생</div></div>
+    <div class="stat-card stat-ok"><div class="stat-val">${ok}</div><div class="stat-lbl">수강 가능</div></div>
+    <div class="stat-card stat-bad"><div class="stat-val">${students.length-ok}</div><div class="stat-lbl">충돌 발생</div></div>
+  `;
+
+  renderStudentsGrid(stuWithResults);
+}
+
+function renderStudents() {
+  const stuWithResults = STATE.students.map(s => ({ ...s, conflicts: [] }));
+  renderStudentsGrid(stuWithResults);
+}
+
+function renderStudentsGrid(stuWithResults) {
+  const grid = document.getElementById('stu-grid');
+  if (!stuWithResults.length) { grid.innerHTML = '<p class="text-muted">학생 없음. 위 버튼으로 직접 추가하거나 자동 생성하세요.</p>'; return; }
+
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  const allSectionIds = new Set(sectionGroups.flatMap(g => g.options));
+
+  grid.innerHTML = stuWithResults.map(s => {
+    const hasConflict = s.conflicts && s.conflicts.length > 0;
+    // Show only elective subjects as badges (section subjects shown as group label)
+    const electiveBadges = s.subjects.filter(sid => !allSectionIds.has(sid)).map(sid => {
+      const sub = subjectById(sid);
+      if (!sub) return '';
+      return `<span class="stu-sub-badge" style="background:${catColor(sub.category)}">${sub.name}</span>`;
+    }).join('');
+    const status = s.conflicts
+      ? (hasConflict ? `<span class="stu-status fail">❌ 충돌 ${s.conflicts.length}건</span>` : `<span class="stu-status ok">✅ 가능</span>`)
+      : '';
+    return `<div class="stu-card ${hasConflict?'stu-fail':'stu-ok'}">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="stu-name">${s.name}</div>
+        <div style="display:flex;gap:3px">
+          <button class="btn btn-ghost" style="padding:1px 6px;font-size:11px" onclick="openEditStudent('${s.id}')" title="과목 편집">✏️</button>
+          <button class="btn btn-ghost" style="padding:1px 6px;font-size:11px" onclick="showStudentDetail('${s.id}', [])" title="상세 보기">👁</button>
+        </div>
+      </div>
+      ${status}
+      <div class="stu-subjects">${electiveBadges}</div>
+    </div>`;
+  }).join('');
+}
+
+function showStudentDetail(stuId, conflicts) {
+  const s = STATE.students.find(x => x.id === stuId);
+  if (!s) return;
+  
+  // Use section-aware check to show optimal assignment
+  const result = checkProfileWithSections(s.subjects);
+  const actualConflicts = result.conflicts;
+  const conflictSubjects = new Set(actualConflicts.flatMap(c => [c.a, c.b]));
+  
+  const body = `
+    <p class="text-muted mb-10">최적 분반 배정 결과 (수강 과목 ${result.fullSubjects.length}개)</p>
+    ${result.bestSections.length ? `<div style="margin-bottom:8px;padding:6px 10px;background:var(--primary-light);border-radius:6px;font-size:12px">
+      <strong>자동 분반 배정:</strong> ${result.bestSections.map(sid => subjectById(sid)?.name || sid).join(', ')}
+    </div>` : ''}
+    <div class="stu-detail-subjects">
+      ${result.fullSubjects.map(sid => {
+        const sub = subjectById(sid);
+        const p = periodOf(sid);
+        const isConflict = conflictSubjects.has(sid);
+        return `<div class="stu-detail-sub ${isConflict?'conflict':''}" style="background:${catColor(sub?.category||'liberal')}">
+          ${sub?.name||sid} ${p?`(${p}교시)`:'(미배정)'}
+        </div>`;
+      }).join('')}
+    </div>
+    ${actualConflicts.length ? `<div style="margin-top:12px;padding:10px;background:var(--danger-light);border-radius:6px">
+      <strong style="color:var(--danger)">충돌 내용 (최적 분반에서도 불가피):</strong><br>
+      ${actualConflicts.map(c => `${subjectById(c.a)?.name} ↔ ${subjectById(c.b)?.name} (${c.period}교시)`).join('<br>')}
+    </div>` : '<div style="margin-top:12px;padding:10px;background:var(--success-light);border-radius:6px;color:var(--success);font-weight:600">✅ 충돌 없음 — 적절한 분반이 존재합니다</div>'}
+  `;
+  openModal(s.name + ' 상세', body);
+}
+
+// =====================================================
+// TIMETABLE RENDERING
+// =====================================================
+function renderTimetable() {
+  const tbody = document.getElementById('tt-body');
+  const violations = validateHardConstraints();
+  const violSet = new Set(violations.flatMap(v => v.subjects.map(s => `${periodOf(s)}-${s}`)));
+  const numPeriods = STATE.slots.length;
+  const numClassrooms = STATE.classrooms.length;
+
+  // Dynamic header
+  const thead = document.querySelector('#tt-table thead tr');
+  thead.innerHTML = `<th style="width:60px">교시</th>` + STATE.classrooms.map(c => `<th>${c.name}</th>`).join('');
+
+  tbody.innerHTML = Array.from({length: numPeriods}, (_, pi) => {
+    const period = pi + 1;
+    const cells = Array.from({length: numClassrooms}, (_, ci) => {
+      const sid = STATE.slots[pi]?.[ci] || null;
+      if (!sid) {
+        return `<td onclick="openAssignModal(${pi},${ci})"><div class="empty-cell">+ 과목 배정</div></td>`;
+      }
+      const sub = subjectById(sid);
+      const teacher = sub?.teacherId ? teacherById(sub.teacherId) : null;
+      const isConflict = violations.some(v => v.subjects.includes(sid) && v.period === period);
+      const cls = isConflict ? (violations.find(v=>v.subjects.includes(sid))?.type === 'pair' ? 'conflict-pair' : 'conflict-teacher') : '';
+      return `<td class="has-subject ${cls}" onclick="openAssignModal(${pi},${ci})">
+        <div class="subject-chip cat-${sub.category}" title="${teacher?.name||''}">
+          <span class="chip-name">${sub.name}</span>
+          ${teacher ? `<span class="chip-teacher">${teacher.name}</span>` : ''}
+          <span class="chip-remove" onclick="removeSlot(event,${pi},${ci})">✕</span>
+        </div>
+      </td>`;
+    }).join('');
+    return `<tr><td style="text-align:center;font-weight:600;background:#f8fafc;color:var(--text-muted)">${period}교시</td>${cells}</tr>`;
+  }).join('');
+
+  // conflict bar
+  const bar = document.getElementById('conflict-bar');
+  const list = document.getElementById('conflict-list');
+  if (violations.length) {
+    bar.classList.add('has-conflicts');
+    list.innerHTML = violations.map(v => `<li>${v.msg}</li>`).join('');
+  } else {
+    bar.classList.remove('has-conflicts');
+    list.innerHTML = '';
+  }
+
+  // header
+  const assigned = assignedSubjects().length;
+  const total = STATE.subjects.length;
+  document.getElementById('hdr-assigned').textContent = `배정 ${assigned}/${total}`;
+  document.getElementById('hdr-conflicts').textContent = `충돌 ${violations.length}`;
+  document.getElementById('hdr-conflicts').style.background = violations.length ? 'rgba(220,38,38,.7)' : 'rgba(255,255,255,.2)';
+
+  renderPalette();
+  renderAssignStatus();
+}
+
+function removeSlot(e, pi, ci) {
+  e.stopPropagation();
+  STATE.slots[pi][ci] = null;
+  saveState();
+  renderTimetable();
+}
+
+function renderPalette() {
+  const assigned = new Set(assignedSubjects());
+  const palette = document.getElementById('palette');
+  palette.innerHTML = STATE.subjects.map(s => {
+    const isAssigned = assigned.has(s.id);
+    const teacher = s.teacherId ? teacherById(s.teacherId) : null;
+    return `<div class="palette-item ${isAssigned?'assigned':''}" draggable="true"
+        title="${teacher?.name||'담당 미정'}">
+      <div class="palette-dot" style="background:${catColor(s.category)}"></div>
+      <div>
+        <div style="font-size:12px;font-weight:600">${s.name}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${catLabel(s.category)} ${teacher?'· '+teacher.name:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAssignStatus() {
+  const assigned = assignedSubjects().length;
+  const total = STATE.subjects.length;
+  const pct = Math.round(assigned/total*100);
+  document.getElementById('assign-status').innerHTML = `
+    <div style="margin-bottom:6px">${assigned}/${total}개 배정됨 (${pct}%)</div>
+    <div style="background:#e2e8f0;border-radius:4px;height:6px">
+      <div style="background:var(--primary);width:${pct}%;height:100%;border-radius:4px;transition:width .3s"></div>
+    </div>
+  `;
+}
+
+// =====================================================
+// ASSIGN MODAL
+// =====================================================
+let _modalPeriod, _modalClassroom;
+
+function openAssignModal(pi, ci) {
+  _modalPeriod = pi; _modalClassroom = ci;
+  const assigned = new Set(assignedSubjects());
+  const current = STATE.slots[pi][ci];
+  const period = pi + 1;
+
+  const byCategory = {};
+  for (const s of STATE.subjects) {
+    if (!byCategory[s.category]) byCategory[s.category] = [];
+    byCategory[s.category].push(s);
+  }
+
+  let html = `<p class="text-muted mb-10">${period}교시 ${ci===0?'교실 A':'교실 B'} 에 배정할 과목을 선택하세요.</p>`;
+  for (const [cat, subs] of Object.entries(byCategory)) {
+    html += `<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;font-weight:600">${catLabel(cat)}</div>
+    <div class="modal-grid">`;
+    for (const s of subs) {
+      const isAssigned = assigned.has(s.id) && s.id !== current;
+      const teacher = s.teacherId ? teacherById(s.teacherId) : null;
+      html += `<button class="modal-btn cat-${s.category} ${isAssigned?'assigned':''}"
+        ${isAssigned?'disabled':''} 
+        ${!isAssigned ? `onclick="assignSlot('${s.id}')"` : ''}>
+        ${s.name}${teacher?`<div style="font-size:10px;font-weight:400;color:var(--text-muted);margin-top:2px">${teacher.name}</div>`:''}
+      </button>`;
+    }
+    html += `</div></div>`;
+  }
+
+  const actions = `
+    ${current ? `<button class="btn btn-danger" onclick="removeSlot2()">🗑 제거</button>` : ''}
+    <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+  `;
+  html += `<div class="modal-actions">${actions}</div>`;
+  openModal(`${period}교시 ${ci===0?'교실 A':'교실 B'} 과목 선택`, html);
+}
+
+function assignSlot(subjectId) {
+  STATE.slots[_modalPeriod][_modalClassroom] = subjectId;
+  saveState();
+  closeModal();
+  renderTimetable();
+}
+function removeSlot2() {
+  STATE.slots[_modalPeriod][_modalClassroom] = null;
+  saveState();
+  closeModal();
+  renderTimetable();
+}
+
+// =====================================================
+// MODAL
+// =====================================================
+function openModal(title, body) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// =====================================================
+// CONSTRAINT INEVITABILITY REPORT
+// =====================================================
+function showConstraintReport() {
+  const d = STATE;
+  const subjects = d.subjects;
+  const teachers = d.teachers;
+  const periods = d.slots.length;
+  const classrooms = d.classrooms.length;
+  const totalSlots = periods * classrooms;
+  const totalSubjects = subjects.length;
+  const slack = totalSlots - totalSubjects;
+
+  // Teacher conflicts: subjects taught by same teacher
+  const teacherPairs = [];
+  teachers.forEach(t => {
+    for (let i = 0; i < t.subjectIds.length; i++)
+      for (let j = i+1; j < t.subjectIds.length; j++)
+        teacherPairs.push([t.subjectIds[i], t.subjectIds[j], t.name]);
+  });
+
+  // Count hard constraints per period
+  const pairCount = d.pairConstraints.length;
+  const teacherPairCount = teacherPairs.length;
+  const totalHard = pairCount + teacherPairCount;
+
+  // Science combinations
+  const sciRule = d.choiceRules.find(r => r.id === 'r_science');
+  const sciOptions = sciRule ? sciRule.options : [];
+  const sciCount = sciRule ? sciRule.count : 3;
+  const sciCombos = factorial(sciOptions.length) / (factorial(sciCount) * factorial(sciOptions.length - sciCount));
+
+  // All profiles
+  const profiles = generateAllProfiles();
+  const profileCount = profiles.length;
+
+  // Check feasibility for current slot assignment
+  let feasibleCount = 0;
+  let infeasibleDetails = [];
+  if (d.slots.flat().filter(Boolean).length === totalSubjects) {
+    profiles.forEach(p => {
+      const result = checkProfileWithSections(p.subjects);
+      if (result.conflicts === 0) feasibleCount++;
+      else infeasibleDetails.push({ profile: p, conflicts: result.conflicts });
+    });
+  }
+  const slotsAssigned = d.slots.flat().filter(Boolean).length;
+
+  // Build report HTML
+  let html = `
+  <div style="max-height:70vh;overflow-y:auto;font-size:13px;line-height:1.6">
+    <h3 style="margin:0 0 12px;color:var(--primary)">📊 구조적 충돌 불가피성 분석</h3>
+    
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px">1. 슬롯 여유도 (Slack)</h4>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr><td>총 교시</td><td style="text-align:right;font-weight:600">${periods}교시</td></tr>
+        <tr><td>총 교실</td><td style="text-align:right;font-weight:600">${classrooms}개</td></tr>
+        <tr><td>총 슬롯 (교시×교실)</td><td style="text-align:right;font-weight:600">${totalSlots}개</td></tr>
+        <tr><td>총 과목 수</td><td style="text-align:right;font-weight:600">${totalSubjects}개</td></tr>
+        <tr style="background:${slack===0?'rgba(255,87,87,0.1)':'rgba(78,205,196,0.1)'}">
+          <td><strong>여유 슬롯</strong></td>
+          <td style="text-align:right;font-weight:700;color:${slack===0?'var(--danger)':'var(--success)'}">${slack}개 ${slack===0?'⚠️ ZERO SLACK':''}</td>
+        </tr>
+      </table>
+      <p style="margin:8px 0 0;font-size:11px;color:var(--text-muted)">
+        ${slack===0 ? '⚠️ 여유 슬롯이 0이므로, 20과목이 20슬롯을 빈틈없이 채워야 합니다. 어떤 두 과목이든 같은 교시에 배치되면, 그 두 과목을 모두 선택한 학생에게는 <strong>구조적으로 충돌이 불가피</strong>합니다.' : '여유 슬롯이 있어 일부 교시 분산 가능합니다.'}
+      </p>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px">2. 하드 제약 (같은 교시 불가)</h4>
+      <p style="margin:0 0 6px;font-size:11px;color:var(--text-muted)">아래 과목 쌍은 반드시 다른 교시에 배치되어야 합니다:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
+        <div style="font-weight:600;color:var(--primary)">분반 쌍 제약 (${pairCount}개)</div>
+        <div style="font-weight:600;color:var(--primary)">교사 겹침 제약 (${teacherPairCount}개)</div>
+        ${d.pairConstraints.map(p => `<div>• ${subjectName(p[0])} ↔ ${subjectName(p[1])}</div>`).join('')}
+        ${teacherPairs.map(p => `<div>• ${subjectName(p[0])} ↔ ${subjectName(p[1])} <span style="color:var(--text-muted)">(${p[2]})</span></div>`).join('')}
+      </div>
+      <p style="margin:8px 0 0;font-size:11px;color:var(--text-muted)">
+        총 <strong>${totalHard}개</strong>의 하드 제약. 이것만으로 최소 ${totalHard}개 교시가 "쌍 분리"에 소비됩니다.
+      </p>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px">3. 과학 선택 조합 분석</h4>
+      <p style="margin:0 0 6px;font-size:12px">
+        과학 ${sciOptions.length}과목 중 ${sciCount}과목 선택 → <strong>C(${sciOptions.length},${sciCount}) = ${sciCombos}가지</strong> 조합
+      </p>
+      <p style="margin:0 0 6px;font-size:11px;color:var(--text-muted)">
+        2교실 시스템에서 각 교시에 최대 2과목만 배치 가능.<br>
+        과학 5과목이 최소 3교시에 걸쳐야 하는데, 같은 교시에 2과학이 놓이면<br>
+        → 그 2과목을 모두 택한 학생은 <strong>100% 충돌</strong>
+      </p>
+      <div style="background:rgba(78,205,196,0.1);border-radius:4px;padding:8px;font-size:11px">
+        <strong>✅ 이상적 배치:</strong> 5과학을 모두 다른 교시에 배치하면<br>
+        → 모든 C(5,3)=10 조합이 과학끼리는 충돌 없음<br>
+        <strong>❌ 현실 제약:</strong> 교사 겹침(물리↔R&E1, 화학↔R&E2, 생물↔교양1, 지구과학↔교양2)으로<br>
+        과학 배치 자유도가 제한되어, 최적 분산이 어려울 수 있음
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px">4. 학생 프로필 분석</h4>
+      <p style="margin:0 0 6px;font-size:12px">
+        가능한 선택 프로필: <strong>${profileCount}가지</strong><br>
+        (분반 조합 포함 시: ${profileCount * 32}가지)
+      </p>
+      ${slotsAssigned === totalSubjects ? `
+        <p style="margin:0 0 6px;font-size:12px">
+          현재 배치에서 무충돌 프로필: <strong style="color:${feasibleCount>0?'var(--success)':'var(--danger)'}">
+          ${feasibleCount}/${profileCount} (${(feasibleCount/profileCount*100).toFixed(1)}%)</strong>
+        </p>
+      ` : `
+        <p style="margin:0;font-size:11px;color:var(--text-muted)">
+          ⚠️ 시간표가 아직 완성되지 않았습니다 (${slotsAssigned}/${totalSubjects} 배정됨).<br>
+          모든 과목을 배정한 후 다시 확인하세요.
+        </p>
+      `}
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px">5. 결론: 왜 충돌이 불가피한가?</h4>
+      <div style="font-size:12px;line-height:1.7">
+        <p><strong>핵심 원인: ZERO SLACK</strong></p>
+        <ol style="margin:4px 0;padding-left:20px">
+          <li>20과목 / 2교실 = 10교시 필요 → 모든 슬롯이 채워져야 함</li>
+          <li>각 교시에 정확히 2과목 → 같은 교시 과목쌍은 <em>어떤 학생이든</em> 동시 수강 불가</li>
+          <li>학생은 10과목 선택 → 10교시 각각에서 1과목씩 정확히 맞아야 무충돌</li>
+          <li>하드 제약 ${totalHard}개가 배치 자유도를 더욱 축소</li>
+          <li>C(5,3)=10가지 과학 조합 모두 만족시키려면 5과학이 5개 다른 교시 필요</li>
+          <li>하지만 그것만으로 10교시 중 5교시를 과학이 점유 → 나머지 15과목이 5교시+나머지에 압축</li>
+        </ol>
+        <p style="margin-top:8px;padding:8px;background:rgba(255,87,87,0.1);border-radius:4px">
+          <strong>∴ 현재 구조(20과목, 10교시, 2교실)에서는 어떤 배치를 하더라도<br>
+          최소 일부 학생 프로필에서 충돌이 발생할 수밖에 없습니다.</strong>
+        </p>
+      </div>
+    </div>
+  </div>`;
+
+  openModal('충돌 불가피성 분석 리포트', html);
+}
+
+function factorial(n) { return n <= 1 ? 1 : n * factorial(n-1); }
+function subjectName(id) { return STATE.subjects.find(s=>s.id===id)?.name || id; }
+
+// =====================================================
+// SCIENCE FREE SELECTION STRATEGY
+// =====================================================
+function showScienceStrategy() {
+  let html = `
+  <div style="max-height:70vh;overflow-y:auto;font-size:13px;line-height:1.6">
+    <h3 style="margin:0 0 12px;color:var(--primary)">🔬 과학 자유선택 전략</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+      목표: 학생이 과학 5과목(물리/화학/생물/지구과학/정보) 중 어떤 3개를 골라도 충돌 없이 수강 가능하도록 만들기
+    </p>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--success)">✅ 전략 A: 과학 5과목 완전 분리 배치 (현 시스템 내)</h4>
+      <div style="font-size:12px">
+        <p><strong>핵심:</strong> 5개 과학 과목을 모두 다른 교시에 배치</p>
+        <p><strong>원리:</strong> C(5,3)=10 조합 모두 3과목이 3개 다른 교시 → 과학 간 충돌 0</p>
+        <p style="margin-top:6px"><strong>제약 확인:</strong></p>
+        <ul style="margin:4px 0;padding-left:16px;font-size:11px">
+          <li>물리(t_sciA)와 R&E1(t_sciA) → 이미 다른 교시 필수 ✓</li>
+          <li>화학(t_sciB)와 R&E2(t_sciB) → 이미 다른 교시 필수 ✓</li>
+          <li>생물(t_sciC)와 교양1(t_sciC) → 이미 다른 교시 필수 ✓</li>
+          <li>지구과학(t_sciD)와 교양2(t_sciD) → 이미 다른 교시 필수 ✓</li>
+          <li>5과학이 5교시 점유 → 나머지 15과목이 5교시+동교시 반대교실에 분배</li>
+        </ul>
+        <div style="margin-top:8px;padding:8px;background:rgba(78,205,196,0.1);border-radius:4px">
+          <strong>실현 가능성: 높음</strong> — 추가 자원 불필요<br>
+          <strong>트레이드오프:</strong> 과학 외 과목의 배치 자유도가 줄어, 다른 조합에서 충돌 증가 가능
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--primary)">🏗️ 전략 B: 교실 1개 추가 (3교실 체제)</h4>
+      <div style="font-size:12px">
+        <p><strong>핵심:</strong> 교실 C 추가 → 10교시 × 3교실 = 30슬롯 (여유 10)</p>
+        <p><strong>효과:</strong></p>
+        <ul style="margin:4px 0;padding-left:16px;font-size:11px">
+          <li>각 교시에 3과목 동시 운영 가능</li>
+          <li>과학 5과목을 2교시에 분산 가능 (2+3 또는 2+2+1)</li>
+          <li>여유 슬롯 10개 → 배치 유연성 대폭 증가</li>
+          <li>다른 선택과목 충돌도 함께 해소</li>
+        </ul>
+        <div style="margin-top:8px;padding:8px;background:rgba(99,102,241,0.1);border-radius:4px">
+          <strong>실현 가능성: 중간</strong> — 물리적 공간+교사 확보 필요<br>
+          <strong>트레이드오프:</strong> 교실 관리 부담, 소규모 반(15명 이하) 운영 비효율
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--primary)">📐 전략 C: 교시 확대 (11~12교시)</h4>
+      <div style="font-size:12px">
+        <p><strong>핵심:</strong> 11교시 → 22슬롯(여유2), 12교시 → 24슬롯(여유4)</p>
+        <p><strong>효과:</strong></p>
+        <ul style="margin:4px 0;padding-left:16px;font-size:11px">
+          <li>2슬롯만 비어도 배치 자유도 급증</li>
+          <li>과학 분산 + 교사 제약 해소 동시 가능</li>
+          <li>학생 시간표에 "공강" 발생 → 자습/탐구 시간 활용</li>
+        </ul>
+        <div style="margin-top:8px;padding:8px;background:rgba(99,102,241,0.1);border-radius:4px">
+          <strong>실현 가능성: 중간</strong> — 교육과정 시수 조정 필요<br>
+          <strong>트레이드오프:</strong> 교사 근무시간 증가, 학생 하교 시간 지연
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--primary)">🔄 전략 D: 과학 분반 도입</h4>
+      <div style="font-size:12px">
+        <p><strong>핵심:</strong> 인기 과학 과목(예: 생물)을 생물1/생물2 분반으로 분리</p>
+        <p><strong>효과:</strong></p>
+        <ul style="margin:4px 0;padding-left:16px;font-size:11px">
+          <li>같은 과목을 2교시에 개설 → 다른 과학과 교시 겹침 회피</li>
+          <li>학생은 빈 분반으로 자동 배정</li>
+          <li>교사 추가 부담 없이 기존 교사가 2분반 담당 가능</li>
+        </ul>
+        <div style="margin-top:8px;padding:8px;background:rgba(99,102,241,0.1);border-radius:4px">
+          <strong>실현 가능성: 높음</strong> — 과목 수 증가(21~22과목) → 교실/교시 추가 필요<br>
+          <strong>트레이드오프:</strong> 슬롯 부족 심화 (교실 or 교시 증가 필수)
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+      <h4 style="margin:0 0 8px;font-size:13px">⭐ 종합 권장 전략</h4>
+      <div style="font-size:12px;line-height:1.7">
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <tr style="background:var(--surface-hover)">
+            <th style="padding:4px;text-align:left">전략</th>
+            <th style="padding:4px;text-align:center">효과</th>
+            <th style="padding:4px;text-align:center">비용</th>
+            <th style="padding:4px;text-align:center">추천도</th>
+          </tr>
+          <tr><td style="padding:4px">A. 과학 완전분리</td><td style="text-align:center">⭐⭐⭐</td><td style="text-align:center">⭐ (무비용)</td><td style="text-align:center;color:var(--success);font-weight:700">최우선</td></tr>
+          <tr><td style="padding:4px">B. 교실 추가</td><td style="text-align:center">⭐⭐⭐⭐⭐</td><td style="text-align:center">⭐⭐⭐</td><td style="text-align:center">차선</td></tr>
+          <tr><td style="padding:4px">C. 교시 확대</td><td style="text-align:center">⭐⭐⭐⭐</td><td style="text-align:center">⭐⭐⭐</td><td style="text-align:center">보조</td></tr>
+          <tr><td style="padding:4px">D. 과학 분반</td><td style="text-align:center">⭐⭐⭐</td><td style="text-align:center">⭐⭐⭐⭐</td><td style="text-align:center">B와 병행</td></tr>
+        </table>
+        <p style="margin-top:10px;padding:8px;background:rgba(78,205,196,0.1);border-radius:4px">
+          <strong>1순위 실행:</strong> 전략 A를 먼저 적용 (과학 5과목을 각각 다른 교시에 배치)<br>
+          <strong>2순위:</strong> A 적용 후에도 전체 무충돌률이 낮다면, 전략 B(교실 추가) 검토<br>
+          <strong>시뮬레이터 활용:</strong> 자동 배치(SA/CSP) 실행 시 "과학 분리" 조건을 우선 고정하고 나머지를 최적화
+        </p>
+      </div>
+    </div>
+  </div>`;
+
+  openModal('과학 자유선택 전략', html);
+}
+
+// =====================================================
+// STUDENT CRUD
+// =====================================================
+function clearStudents() {
+  if (!STATE.students.length) return;
+  if (!confirm(`학생 ${STATE.students.length}명을 모두 삭제하시겠습니까?`)) return;
+  STATE.students = [];
+  saveState();
+  document.getElementById('stu-summary').style.display = 'none';
+  renderStudents();
+}
+
+function openAddStudent() {
+  openModal('학생 추가', buildStudentEditHtml(null));
+}
+
+function openEditStudent(stuId) {
+  const s = STATE.students.find(x => x.id === stuId);
+  if (!s) return;
+  openModal(`${s.name} 과목 편집`, buildStudentEditHtml(s));
+}
+
+function buildStudentEditHtml(student) {
+  const currentSubjects = student ? new Set(student.subjects) : new Set();
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  let html = '';
+
+  if (!student) {
+    html += `<div class="edit-row" style="margin-bottom:12px"><label>이름</label><input type="text" id="ns-name" placeholder="학생 이름"></div>`;
+  }
+
+  // Section groups (분반) - 안내만 표시, 선택 불필요
+  html += `<div class="stu-pick-group"><div class="group-title">분반 과목 (자동 배정 — 시간표에 따라 유연하게 결정됨)</div>`;
+  html += `<div style="padding:8px;background:var(--primary-light);border-radius:6px;font-size:12px;color:var(--text-muted);margin-bottom:10px">
+    아래 과목들은 모든 학생이 이수하며, 어느 분반(1 또는 2)으로 배정될지는 시간표 충돌을 최소화하는 방향으로 자동 결정됩니다.
+  </div>`;
+  for (const g of sectionGroups) {
+    const optNames = g.options.map(opt => subjectById(opt)?.name || opt).join(' / ');
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin-bottom:4px">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColor(subjectById(g.options[0])?.category||'liberal')}"></span>
+      <span style="font-size:12px;font-weight:600">${g.label}</span>
+      <span style="font-size:11px;color:var(--text-muted)">(${optNames})</span>
+    </div>`;
+  }
+  html += `</div>`;
+
+  // Choice rules (선택 과목)
+  html += `<div class="stu-pick-group"><div class="group-title">선택 과목</div>`;
+  for (const r of STATE.choiceRules) {
+    html += `<div style="margin-bottom:8px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:5px">
+        ${r.label} <span id="cnt_${r.id}" style="color:var(--text-muted);font-weight:400">(0/${r.count})</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">`;
+    for (const opt of r.options) {
+      const sub = subjectById(opt);
+      const checked = currentSubjects.has(opt) ? 'checked' : '';
+      html += `<label class="stu-cb-label">
+        <input type="checkbox" name="rule_${r.id}" value="${opt}" ${checked} onchange="updateRuleCount('${r.id}', ${r.count})">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColor(sub?.category||'liberal')}"></span>
+        ${sub?.name||opt}
+      </label>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="modal-actions">
+    ${student ? `<button class="btn btn-danger" onclick="deleteStudent('${student.id}')">삭제</button>` : ''}
+    <button class="btn btn-primary" onclick="${student ? `saveStudent('${student.id}')` : 'addStudent()'}">저장</button>
+    <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+  </div>`;
+
+  setTimeout(() => { for (const r of STATE.choiceRules) updateRuleCount(r.id, r.count); }, 0);
+  return html;
+}
+
+function updateRuleCount(ruleId, maxCount) {
+  const checkboxes = document.querySelectorAll(`input[name="rule_${ruleId}"]`);
+  const checked = Array.from(checkboxes).filter(c => c.checked).length;
+  const el = document.getElementById(`cnt_${ruleId}`);
+  if (el) {
+    el.textContent = `(${checked}/${maxCount})`;
+    el.style.color = checked === maxCount ? 'var(--success)' : checked > maxCount ? 'var(--danger)' : 'var(--warn)';
+  }
+  for (const cb of checkboxes) {
+    if (!cb.checked && checked >= maxCount) cb.disabled = true;
+    else cb.disabled = false;
+  }
+}
+
+function gatherStudentSubjects() {
+  const subjects = [];
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  // Add first option of each section group as placeholder (분반 자동 결정)
+  for (const g of sectionGroups) {
+    subjects.push(g.options[0]);
+  }
+  // Add selected electives
+  for (const r of STATE.choiceRules) {
+    document.querySelectorAll(`input[name="rule_${r.id}"]:checked`).forEach(cb => subjects.push(cb.value));
+  }
+  return subjects;
+}
+
+function validateStudentSubjects(subjects) {
+  for (const r of STATE.choiceRules) {
+    const sel = subjects.filter(s => r.options.includes(s));
+    if (sel.length !== r.count) return `[${r.label}]: ${r.count}개를 선택해야 합니다. (현재 ${sel.length}개)`;
+  }
+  return null;
+}
+
+function addStudent() {
+  const nameEl = document.getElementById('ns-name');
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('이름을 입력하세요.'); return; }
+  const subjects = gatherStudentSubjects();
+  const err = validateStudentSubjects(subjects);
+  if (err) { alert(err); return; }
+  STATE.students.push({ id: 'stu_' + Date.now(), name, subjects });
+  saveState();
+  closeModal();
+  checkAllStudents();
+}
+
+function saveStudent(id) {
+  const s = STATE.students.find(x => x.id === id);
+  if (!s) return;
+  const subjects = gatherStudentSubjects();
+  const err = validateStudentSubjects(subjects);
+  if (err) { alert(err); return; }
+  s.subjects = subjects;
+  saveState();
+  closeModal();
+  checkAllStudents();
+}
+
+function deleteStudent(id) {
+  if (!confirm('학생을 삭제하시겠습니까?')) return;
+  STATE.students = STATE.students.filter(x => x.id !== id);
+  saveState();
+  closeModal();
+  checkAllStudents();
+}
+
+// =====================================================
+// AUTO-GEN (Simulated Annealing)
+// =====================================================
+
+function switchAlgo(algo) {
+  document.querySelectorAll('.ag-algo-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.ag-algo-btn[data-algo="${algo}"]`).classList.add('active');
+  document.querySelectorAll('.algo-opts').forEach(el => el.style.display = 'none');
+  document.getElementById('opts-' + algo).style.display = '';
+}
+
+// =====================================================
+// GRAPH COLORING (Conflict Graph + Greedy Coloring)
+// =====================================================
+function buildConflictGraph(students, numClassrooms) {
+  // Nodes = subjects, Edges = two subjects share a student (or teacher, or pair constraint)
+  const subjects = STATE.subjects;
+  const n = subjects.length;
+  const adj = Array.from({length: n}, () => Array(n).fill(0));
+  const idxMap = {};
+  subjects.forEach((s, i) => idxMap[s.id] = i);
+
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  const allSectionIds = new Set(sectionGroups.flatMap(g => g.options));
+
+  // Student conflicts: for each student, their elective subjects conflict with each other,
+  // and elective subjects conflict with ALL options of each section group they participate in
+  // (since we want at least one section option to not conflict, the weight is halved for sections)
+  for (const stu of students) {
+    const fixedSubs = stu.subjects.filter(s => !allSectionIds.has(s));
+    const stuSectionGroups = sectionGroups.filter(g => g.options.some(opt => stu.subjects.includes(opt)));
+
+    // Fixed-to-fixed conflicts
+    for (let i = 0; i < fixedSubs.length; i++) {
+      for (let j = i + 1; j < fixedSubs.length; j++) {
+        const a = idxMap[fixedSubs[i]], b = idxMap[fixedSubs[j]];
+        if (a !== undefined && b !== undefined) {
+          adj[a][b]++;
+          adj[b][a]++;
+        }
+      }
+    }
+
+    // Fixed-to-section conflicts: each fixed subject conflicts with each section option
+    // Weight = 1 per student per option (since student needs at least ONE option free)
+    for (const fixed of fixedSubs) {
+      const fi = idxMap[fixed];
+      if (fi === undefined) continue;
+      for (const g of stuSectionGroups) {
+        for (const opt of g.options) {
+          const oi = idxMap[opt];
+          if (oi !== undefined && fi !== oi) {
+            adj[fi][oi]++;
+            adj[oi][fi]++;
+          }
+        }
+      }
+    }
+
+    // Section-to-section conflicts: different section groups conflict with each other
+    for (let i = 0; i < stuSectionGroups.length; i++) {
+      for (let j = i + 1; j < stuSectionGroups.length; j++) {
+        for (const optA of stuSectionGroups[i].options) {
+          for (const optB of stuSectionGroups[j].options) {
+            const a = idxMap[optA], b = idxMap[optB];
+            if (a !== undefined && b !== undefined) {
+              adj[a][b]++;
+              adj[b][a]++;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Teacher constraints: same teacher's subjects can't be same period
+  for (const t of STATE.teachers) {
+    for (let i = 0; i < t.subjectIds.length; i++) {
+      for (let j = i + 1; j < t.subjectIds.length; j++) {
+        const a = idxMap[t.subjectIds[i]], b = idxMap[t.subjectIds[j]];
+        if (a !== undefined && b !== undefined) {
+          adj[a][b] += 10000; // hard constraint = very heavy weight
+          adj[b][a] += 10000;
+        }
+      }
+    }
+  }
+
+  // Pair constraints
+  for (const [idA, idB] of STATE.pairConstraints) {
+    const a = idxMap[idA], b = idxMap[idB];
+    if (a !== undefined && b !== undefined) {
+      adj[a][b] += 10000;
+      adj[b][a] += 10000;
+    }
+  }
+
+  return { adj, idxMap, subjects };
+}
+
+function greedyColoring(students, numPeriods, numClassrooms, strategy) {
+  const { adj, idxMap, subjects } = buildConflictGraph(students, numClassrooms);
+  const n = subjects.length;
+
+  // Calculate degree for each node
+  const degree = Array(n).fill(0);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++)
+      if (adj[i][j] > 0) degree[i]++;
+
+  // Weighted degree (sum of edge weights)
+  const weightedDeg = Array(n).fill(0);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++)
+      weightedDeg[i] += adj[i][j];
+
+  // Order nodes by strategy
+  let order = Array.from({length: n}, (_, i) => i);
+  if (strategy === 'degree') {
+    order.sort((a, b) => degree[b] - degree[a]);
+  } else if (strategy === 'weight') {
+    order.sort((a, b) => weightedDeg[b] - weightedDeg[a]);
+  }
+  // DSatur: dynamic, done inline below
+
+  // Color assignment: color = period index (0..numPeriods-1)
+  // Each color can hold at most numClassrooms subjects
+  const color = Array(n).fill(-1);
+  const colorCount = Array(numPeriods).fill(0);
+
+  if (strategy === 'saturation') {
+    // DSatur algorithm
+    const saturation = Array(n).fill(0); // number of distinct colors in neighbors
+    const colored = Array(n).fill(false);
+
+    for (let step = 0; step < n; step++) {
+      // Pick uncolored node with max saturation, break ties by degree
+      let best = -1, bestSat = -1, bestDeg = -1;
+      for (let i = 0; i < n; i++) {
+        if (colored[i]) continue;
+        if (saturation[i] > bestSat || (saturation[i] === bestSat && degree[i] > bestDeg)) {
+          best = i;
+          bestSat = saturation[i];
+          bestDeg = degree[i];
+        }
+      }
+
+      // Find lowest color not used by neighbors and not full
+      const neighborColors = new Set();
+      for (let j = 0; j < n; j++)
+        if (adj[best][j] > 0 && color[j] >= 0)
+          neighborColors.add(color[j]);
+
+      let c = -1;
+      for (let k = 0; k < numPeriods; k++) {
+        if (!neighborColors.has(k) && colorCount[k] < numClassrooms) {
+          c = k; break;
+        }
+      }
+      if (c === -1) {
+        // Fallback: pick color with min conflict weight
+        let minW = Infinity;
+        for (let k = 0; k < numPeriods; k++) {
+          if (colorCount[k] < numClassrooms) {
+            let w = 0;
+            for (let j = 0; j < n; j++)
+              if (color[j] === k) w += adj[best][j];
+            if (w < minW) { minW = w; c = k; }
+          }
+        }
+        if (c === -1) c = 0; // all full, just pick first
+      }
+
+      color[best] = c;
+      colorCount[c]++;
+      colored[best] = true;
+
+      // Update saturation for uncolored neighbors
+      for (let j = 0; j < n; j++) {
+        if (!colored[j] && adj[best][j] > 0) {
+          const colorsUsed = new Set();
+          for (let k = 0; k < n; k++)
+            if (adj[j][k] > 0 && color[k] >= 0) colorsUsed.add(color[k]);
+          saturation[j] = colorsUsed.size;
+        }
+      }
+    }
+  } else {
+    // Greedy with fixed order
+    for (const node of order) {
+      const neighborColors = new Set();
+      for (let j = 0; j < n; j++)
+        if (adj[node][j] > 0 && color[j] >= 0)
+          neighborColors.add(color[j]);
+
+      let c = -1;
+      for (let k = 0; k < numPeriods; k++) {
+        if (!neighborColors.has(k) && colorCount[k] < numClassrooms) {
+          c = k; break;
+        }
+      }
+      if (c === -1) {
+        let minW = Infinity;
+        for (let k = 0; k < numPeriods; k++) {
+          if (colorCount[k] < numClassrooms) {
+            let w = 0;
+            for (let j = 0; j < n; j++)
+              if (color[j] === k) w += adj[node][j];
+            if (w < minW) { minW = w; c = k; }
+          }
+        }
+        if (c === -1) c = 0;
+      }
+      color[node] = c;
+      colorCount[c]++;
+    }
+  }
+
+  // Convert color assignment to slots
+  const slots = Array.from({length: numPeriods}, () => Array(numClassrooms).fill(null));
+  const slotFill = Array(numPeriods).fill(0);
+  for (let i = 0; i < n; i++) {
+    const p = color[i];
+    if (p >= 0 && p < numPeriods && slotFill[p] < numClassrooms) {
+      slots[p][slotFill[p]] = subjects[i].id;
+      slotFill[p]++;
+    }
+  }
+  return slots;
+}
+
+function runGraphColoring() {
+  const students = STATE.students;
+  if (!students.length) { alert('먼저 학생 관리 탭에서 학생을 추가하세요.'); return; }
+
+  const strategy = document.getElementById('gc-strategy').value;
+  const numPeriods = STATE.slots.length;
+  const numClassrooms = STATE.classrooms.length;
+  const slots = greedyColoring(students, numPeriods, numClassrooms, strategy);
+
+  displayAutoGenResult(slots, students, 'Graph Coloring (' + 
+    {degree:'차수우선', saturation:'DSatur', weight:'가중치우선'}[strategy] + ')');
+}
+
+// =====================================================
+// CSP BACKTRACKING WITH CONSTRAINT PROPAGATION
+// =====================================================
+async function runCSP() {
+  const students = STATE.students;
+  if (!students.length) { alert('먼저 학생 관리 탭에서 학생을 추가하세요.'); return; }
+
+  const timeoutSec = parseInt(document.getElementById('csp-timeout').value) || 10;
+  const requireAllOk = document.getElementById('csp-all-students').checked;
+  const numPeriods = STATE.slots.length;
+  const numClassrooms = STATE.classrooms.length;
+  const subjects = STATE.subjects;
+  const n = subjects.length;
+  const idxMap = {};
+  subjects.forEach((s, i) => idxMap[s.id] = i);
+
+  document.getElementById('ag-progress').style.display = '';
+  document.getElementById('ag-progress-text').textContent = 'CSP 탐색 중...';
+  document.getElementById('ag-progress-bar').style.width = '0%';
+  document.getElementById('ag-results').innerHTML = '';
+
+  await new Promise(r => setTimeout(r, 0));
+
+  // Build hard constraint pairs (must NOT be in same period)
+  const hardPairs = new Set();
+
+  // Teacher constraints
+  for (const t of STATE.teachers) {
+    for (let i = 0; i < t.subjectIds.length; i++) {
+      for (let j = i + 1; j < t.subjectIds.length; j++) {
+        const a = idxMap[t.subjectIds[i]], b = idxMap[t.subjectIds[j]];
+        if (a !== undefined && b !== undefined)
+          hardPairs.add(Math.min(a,b) * n + Math.max(a,b));
+      }
+    }
+  }
+  // Pair constraints
+  for (const [idA, idB] of STATE.pairConstraints) {
+    const a = idxMap[idA], b = idxMap[idB];
+    if (a !== undefined && b !== undefined)
+      hardPairs.add(Math.min(a,b) * n + Math.max(a,b));
+  }
+
+  // Student soft constraints (build adjacency weight matrix)
+  // For section groups: student needs at least ONE option per group that doesn't conflict.
+  // Conservative: add edge between elective and ALL section options (at least one must be free)
+  const studentAdj = Array.from({length: n}, () => Array(n).fill(0));
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  const allSectionIds = new Set(sectionGroups.flatMap(g => g.options));
+
+  if (requireAllOk) {
+    for (const stu of students) {
+      const fixedSubs = stu.subjects.filter(s => !allSectionIds.has(s));
+      const stuSectionGroups = sectionGroups.filter(g => g.options.some(opt => stu.subjects.includes(opt)));
+
+      // Fixed-to-fixed
+      for (let i = 0; i < fixedSubs.length; i++) {
+        for (let j = i + 1; j < fixedSubs.length; j++) {
+          const a = idxMap[fixedSubs[i]], b = idxMap[fixedSubs[j]];
+          if (a !== undefined && b !== undefined) {
+            studentAdj[a][b]++;
+            studentAdj[b][a]++;
+          }
+        }
+      }
+      // Fixed-to-section: for CSP "all ok" mode, we need at least ONE section option free per group
+      // We add lighter weight (won't prevent solution but guides search)
+      for (const fixed of fixedSubs) {
+        const fi = idxMap[fixed];
+        if (fi === undefined) continue;
+        for (const g of stuSectionGroups) {
+          for (const opt of g.options) {
+            const oi = idxMap[opt];
+            if (oi !== undefined && fi !== oi) {
+              studentAdj[fi][oi]++;
+              studentAdj[oi][fi]++;
+            }
+          }
+        }
+      }
+      // Section-to-section (cross-group)
+      for (let i = 0; i < stuSectionGroups.length; i++) {
+        for (let j = i + 1; j < stuSectionGroups.length; j++) {
+          for (const optA of stuSectionGroups[i].options) {
+            for (const optB of stuSectionGroups[j].options) {
+              const a = idxMap[optA], b = idxMap[optB];
+              if (a !== undefined && b !== undefined) {
+                studentAdj[a][b]++;
+                studentAdj[b][a]++;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Domain: each subject can go to period 0..numPeriods-1
+  const domain = Array.from({length: n}, () => Array.from({length: numPeriods}, (_, i) => i));
+
+  // MRV + Forward Checking backtracking
+  const assignment = Array(n).fill(-1);
+  const periodCount = Array(numPeriods).fill(0); // subjects assigned per period
+  let solved = false;
+  let nodesExplored = 0;
+  const startTime = Date.now();
+  const timeoutMs = timeoutSec * 1000;
+
+  // Order subjects by constrained-ness (most constrained first = MRV heuristic)
+  const constraintCount = Array(n).fill(0);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++)
+      if (hardPairs.has(Math.min(i,j) * n + Math.max(i,j))) constraintCount[i]++;
+  if (requireAllOk)
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++)
+        if (studentAdj[i][j] > 0) constraintCount[i]++;
+
+  const order = Array.from({length: n}, (_, i) => i).sort((a, b) => constraintCount[b] - constraintCount[a]);
+
+  function isConsistent(node, period) {
+    // Capacity check
+    if (periodCount[period] >= numClassrooms) return false;
+    // Hard pair check
+    for (let i = 0; i < n; i++) {
+      if (assignment[i] === period) {
+        const key = Math.min(node, i) * n + Math.max(node, i);
+        if (hardPairs.has(key)) return false;
+      }
+    }
+    // Student conflict check (if requireAllOk)
+    if (requireAllOk) {
+      for (let i = 0; i < n; i++) {
+        if (assignment[i] === period && studentAdj[node][i] > 0) return false;
+      }
+    }
+    return true;
+  }
+
+  function backtrack(depth) {
+    if (Date.now() - startTime > timeoutMs) return false;
+    if (depth === n) { solved = true; return true; }
+
+    const node = order[depth];
+    nodesExplored++;
+
+    // Try periods ordered by least-used first (LCV heuristic)
+    const periods = Array.from({length: numPeriods}, (_, i) => i)
+      .sort((a, b) => periodCount[a] - periodCount[b]);
+
+    for (const p of periods) {
+      if (isConsistent(node, p)) {
+        assignment[node] = p;
+        periodCount[p]++;
+        if (backtrack(depth + 1)) return true;
+        assignment[node] = -1;
+        periodCount[p]--;
+      }
+    }
+    return false;
+  }
+
+  // Run in chunks to keep UI responsive
+  const chunkBacktrack = () => new Promise(resolve => {
+    backtrack(0);
+    resolve();
+  });
+
+  await chunkBacktrack();
+
+  document.getElementById('ag-progress').style.display = 'none';
+
+  if (solved) {
+    // Convert to slots
+    const slots = Array.from({length: numPeriods}, () => Array(numClassrooms).fill(null));
+    const slotFill = Array(numPeriods).fill(0);
+    for (let i = 0; i < n; i++) {
+      const p = assignment[i];
+      if (p >= 0 && slotFill[p] < numClassrooms) {
+        slots[p][slotFill[p]] = subjects[i].id;
+        slotFill[p]++;
+      }
+    }
+    displayAutoGenResult(slots, students, 'CSP 백트래킹 (정확해)');
+  } else {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    let reason = '';
+    if (Date.now() - startTime >= timeoutMs) {
+      reason = `시간 초과 (${elapsed}초). 시간 제한을 늘리거나 "모든 학생 충돌 0" 옵션을 해제하세요.`;
+    } else {
+      reason = `해가 존재하지 않습니다. 현재 ${numClassrooms}개 교실, ${numPeriods}교시로는 모든 제약을 동시에 만족시킬 수 없습니다.`;
+    }
+    document.getElementById('ag-results').innerHTML = `
+      <div class="card" style="border-color:var(--danger)">
+        <h3 style="color:var(--danger)">❌ CSP 탐색 실패</h3>
+        <p style="margin-top:8px;font-size:13px">${reason}</p>
+        <p class="text-muted" style="margin-top:6px">탐색 노드: ${nodesExplored.toLocaleString()}개 / 소요: ${elapsed}초</p>
+        <div style="margin-top:12px;padding:10px;background:var(--primary-light);border-radius:6px;font-size:12px">
+          <strong>💡 해결 방안:</strong><br>
+          • 용량 시뮬레이션 탭에서 필요한 최소 교실/교시 수를 확인하세요<br>
+          • "모든 학생 충돌 0" 옵션을 해제하면 하드 제약만 만족하는 해를 찾습니다<br>
+          • SA나 Graph Coloring으로 "최선" 해를 구해보세요
+        </div>
+      </div>`;
+  }
+}
+
+// =====================================================
+// CAPACITY SIMULATION (교실/교시 수 분석)
+// =====================================================
+async function runCapacitySim() {
+  const students = STATE.students;
+  if (!students.length) { alert('먼저 학생 관리 탭에서 학생을 추가하세요.'); return; }
+
+  const maxRooms = parseInt(document.getElementById('cap-max-rooms').value) || 5;
+  const maxPeriods = parseInt(document.getElementById('cap-max-periods').value) || 15;
+  const subjects = STATE.subjects;
+  const numSubjects = subjects.length;
+
+  document.getElementById('ag-progress').style.display = '';
+  document.getElementById('ag-progress-text').textContent = '용량 분석 중...';
+  document.getElementById('ag-results').innerHTML = '';
+
+  await new Promise(r => setTimeout(r, 0));
+
+  // For each (rooms, periods) combination, try graph coloring and measure conflicts
+  const results = [];
+  const totalCombos = (maxRooms - 1) * (maxPeriods - Math.ceil(numSubjects / maxRooms) + 1);
+  let done = 0;
+
+  for (let rooms = 2; rooms <= maxRooms; rooms++) {
+    const minPeriods = Math.ceil(numSubjects / rooms);
+    for (let periods = minPeriods; periods <= maxPeriods; periods++) {
+      const slots = greedyColoring(students, periods, rooms, 'saturation');
+      // Count conflicts
+      let hardViolations = 0, stuConflicts = 0;
+
+      // Hard: teacher + pair
+      for (const [a, b] of STATE.pairConstraints) {
+        const pa = periodOfInSlots(slots, a), pb = periodOfInSlots(slots, b);
+        if (pa !== null && pb !== null && pa === pb) hardViolations++;
+      }
+      for (const teacher of STATE.teachers) {
+        const seen = {};
+        for (const sid of teacher.subjectIds) {
+          const p = periodOfInSlots(slots, sid);
+          if (p !== null) { if (seen[p]) hardViolations++; else seen[p] = true; }
+        }
+      }
+      // Student conflicts
+      for (const s of students) {
+        stuConflicts += checkProfileInSlots(slots, s.subjects).length;
+      }
+
+      results.push({ rooms, periods, hardViolations, stuConflicts, total: hardViolations * 10000 + stuConflicts });
+      done++;
+      const pct = Math.round(done / totalCombos * 100);
+      document.getElementById('ag-progress-bar').style.width = Math.min(pct, 100) + '%';
+    }
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  document.getElementById('ag-progress').style.display = 'none';
+
+  // Find minimum configuration with 0 conflicts
+  const perfect = results.filter(r => r.total === 0);
+  const minPerfect = perfect.sort((a, b) => (a.rooms * a.periods) - (b.rooms * b.periods))[0];
+
+  // Current config
+  const current = results.find(r => r.rooms === STATE.classrooms.length && r.periods === STATE.slots.length);
+
+  // Build heatmap
+  const roomsRange = Array.from({length: maxRooms - 1}, (_, i) => i + 2);
+  const periodsRange = [];
+  for (let p = Math.ceil(numSubjects / maxRooms); p <= maxPeriods; p++) periodsRange.push(p);
+
+  const heatmap = roomsRange.map(rooms => {
+    return periodsRange.map(periods => {
+      const r = results.find(x => x.rooms === rooms && x.periods === periods);
+      return r || null;
+    });
+  });
+
+  let html = `<div class="card">
+    <h3>📊 용량 분석 결과</h3>
+    <div style="margin-bottom:12px">
+      <p style="font-size:13px;margin-bottom:6px"><strong>현재 설정:</strong> ${STATE.classrooms.length}교실 × ${STATE.slots.length}교시 = ${STATE.classrooms.length * STATE.slots.length}슬롯 (과목 ${numSubjects}개)</p>
+      ${current ? `<p style="font-size:13px">현재 설정에서의 결과: 하드위반 ${current.hardViolations}, 학생충돌 ${current.stuConflicts}</p>` : ''}
+      ${minPerfect ? `<p style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px">✅ 충돌 0 달성 최소 구성: <strong>${minPerfect.rooms}교실 × ${minPerfect.periods}교시</strong></p>` : `<p style="font-size:13px;color:var(--danger);font-weight:600;margin-top:4px">❌ 분석 범위 내에서 충돌 0 달성 불가. 범위를 늘려보세요.</p>`}
+    </div>
+
+    <p class="text-muted mb-10">히트맵: 각 셀 = 학생 충돌 수 (하드 위반 시 ❌ 표시)</p>
+    <div style="overflow-x:auto">
+      <table class="cap-heatmap">
+        <thead><tr><th>교실\\교시</th>${periodsRange.map(p => `<th>${p}교시</th>`).join('')}</tr></thead>
+        <tbody>
+          ${roomsRange.map((rooms, ri) => `<tr><th>${rooms}교실</th>${periodsRange.map((periods, pi) => {
+            const r = heatmap[ri][pi];
+            if (!r) return `<td style="background:#f1f5f9;color:#94a3b8">-</td>`;
+            if (r.hardViolations > 0) return `<td class="cap-cell-bad">❌${r.stuConflicts}</td>`;
+            if (r.stuConflicts === 0) return `<td class="cap-cell-ok">✅ 0</td>`;
+            return `<td class="cap-cell-partial">${r.stuConflicts}</td>`;
+          }).join('')}</tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    ${minPerfect && (minPerfect.rooms !== STATE.classrooms.length || minPerfect.periods !== STATE.slots.length) ? `
+    <div style="margin-top:14px;padding:10px;background:var(--primary-light);border-radius:6px;font-size:12px">
+      <strong>💡 권장 조치:</strong><br>
+      ${minPerfect.rooms > STATE.classrooms.length ? `• 교실을 ${STATE.classrooms.length}개 → ${minPerfect.rooms}개로 증설 필요<br>` : ''}
+      ${minPerfect.periods > STATE.slots.length ? `• 교시를 ${STATE.slots.length}개 → ${minPerfect.periods}개로 확장 필요<br>` : ''}
+      • 또는 학생 수강 조합의 다양성을 줄여 충돌 가능성을 낮추세요
+    </div>` : ''}
+  </div>`;
+
+  document.getElementById('ag-results').innerHTML = html;
+}
+function periodOfInSlots(slots, subjectId) {
+  for (let p = 0; p < slots.length; p++) {
+    for (let c = 0; c < slots[p].length; c++) {
+      if (slots[p][c] === subjectId) return p + 1;
+    }
+  }
+  return null;
+}
+
+function checkProfileInSlots(slots, subjectIds) {
+  const sectionGroups = STATE.sectionGroups || STATE.pairGroups || [];
+  const allSectionIds = new Set(sectionGroups.flatMap(g => g.options));
+  const fixedSubjects = subjectIds.filter(s => !allSectionIds.has(s));
+  
+  // Determine which section groups this student participates in
+  const studentSectionGroups = [];
+  for (const g of sectionGroups) {
+    const hasAny = g.options.some(opt => subjectIds.includes(opt));
+    if (hasAny) studentSectionGroups.push(g);
+  }
+  
+  // Try all section combos and pick best
+  function genCombos(groups) {
+    if (groups.length === 0) return [[]];
+    let combos = [[]];
+    for (const g of groups) {
+      const next = [];
+      for (const prev of combos)
+        for (const opt of g.options)
+          next.push([...prev, opt]);
+      combos = next;
+    }
+    return combos;
+  }
+  
+  const sectionCombos = genCombos(studentSectionGroups);
+  let bestConflicts = null;
+  
+  for (const combo of sectionCombos) {
+    const fullSubjects = [...fixedSubjects, ...combo];
+    const periodMap = {};
+    for (const sid of fullSubjects) {
+      const p = periodOfInSlots(slots, sid);
+      if (p === null) continue;
+      if (!periodMap[p]) periodMap[p] = [];
+      periodMap[p].push(sid);
+    }
+    const conflicts = [];
+    for (const sids of Object.values(periodMap)) {
+      for (let i = 0; i < sids.length; i++)
+        for (let j = i+1; j < sids.length; j++)
+          conflicts.push({ a: sids[i], b: sids[j] });
+    }
+    if (bestConflicts === null || conflicts.length < bestConflicts.length) {
+      bestConflicts = conflicts;
+      if (conflicts.length === 0) break;
+    }
+  }
+  return bestConflicts || [];
+}
+
+function scoreSlots(slots, students) {
+  let score = 0;
+  // Hard: pair constraints (큰 패널티)
+  for (const [a, b] of STATE.pairConstraints) {
+    const pa = periodOfInSlots(slots, a), pb = periodOfInSlots(slots, b);
+    if (pa !== null && pb !== null && pa === pb) score += 10000;
+  }
+  // Hard: teacher conflicts
+  for (const teacher of STATE.teachers) {
+    const seen = {};
+    for (const sid of teacher.subjectIds) {
+      const p = periodOfInSlots(slots, sid);
+      if (p !== null) {
+        if (seen[p]) score += 10000;
+        else seen[p] = true;
+      }
+    }
+  }
+  // Soft: student conflicts (with section-aware check)
+  for (const s of students) {
+    score += checkProfileInSlots(slots, s.subjects).length * 100;
+  }
+  return score;
+}
+
+async function runAutoGen() {
+  const students = STATE.students;
+  if (!students.length) {
+    alert('먼저 학생 관리 탭에서 학생을 추가하거나 자동 생성하세요.');
+    return;
+  }
+
+  const restarts = parseInt(document.getElementById('ag-restarts').value) || 15;
+  const iters    = parseInt(document.getElementById('ag-iter').value)     || 5000;
+  const runBtn   = document.getElementById('ag-run-btn');
+  runBtn.disabled = true;
+  document.getElementById('ag-progress').style.display = '';
+  document.getElementById('ag-results').innerHTML = '';
+
+  const subjectIds = STATE.subjects.map(s => s.id);
+
+  function randInt(n) { return Math.floor(Math.random() * n); }
+
+  function randomSlots() {
+    const arr = [...subjectIds];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = randInt(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return Array.from({length: 10}, (_, i) => [arr[i*2] || null, arr[i*2+1] || null]);
+  }
+
+  // Use Greedy Coloring initial solution if checkbox checked
+  const useGreedy = document.getElementById('ag-use-greedy')?.checked;
+  function initialSlots() {
+    if (useGreedy) {
+      return greedyColoring(students, 10, STATE.classrooms.length, 'saturation');
+    }
+    return randomSlots();
+  }
+
+  let globalBest = null;
+  let globalBestScore = Infinity;
+
+  for (let r = 0; r < restarts; r++) {
+    let slots = r === 0 ? initialSlots() : (useGreedy && r < 3 ? greedyColoring(students, 10, STATE.classrooms.length, ['saturation','degree','weight'][r % 3]) : randomSlots());
+    let score = scoreSlots(slots, students);
+    let localBest = slots.map(row => [...row]);
+    let localBestScore = score;
+    let temp = 8000;
+    const coolingRate = Math.exp(Math.log(0.01) / iters); // temp → 1% at end
+
+    for (let i = 0; i < iters; i++) {
+      const p1 = randInt(10), c1 = randInt(2);
+      const p2 = randInt(10), c2 = randInt(2);
+      if (p1 === p2 && c1 === c2) continue;
+
+      const tmp = slots[p1][c1];
+      slots[p1][c1] = slots[p2][c2];
+      slots[p2][c2] = tmp;
+
+      const newScore = scoreSlots(slots, students);
+      const delta = newScore - score;
+
+      if (delta < 0 || Math.random() < Math.exp(-delta / temp)) {
+        score = newScore;
+        if (score < localBestScore) {
+          localBestScore = score;
+          localBest = slots.map(row => [...row]);
+          if (localBestScore === 0) break; // perfect
+        }
+      } else {
+        slots[p2][c2] = slots[p1][c1];
+        slots[p1][c1] = tmp;
+      }
+      temp *= coolingRate;
+    }
+
+    if (localBestScore < globalBestScore) {
+      globalBestScore = localBestScore;
+      globalBest = localBest;
+    }
+
+    const pct = Math.round((r + 1) / restarts * 100);
+    document.getElementById('ag-progress-bar').style.width = pct + '%';
+    document.getElementById('ag-progress-text').textContent =
+      `탐색 중... (${r+1}/${restarts}회 완료) 현재 최적 점수: ${globalBestScore}`;
+
+    if (globalBestScore === 0) {
+      document.getElementById('ag-progress-text').textContent = '✅ 완벽한 시간표 발견! 조기 종료';
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  runBtn.disabled = false;
+  document.getElementById('ag-progress').style.display = 'none';
+  displayAutoGenResult(globalBest, students, 'Simulated Annealing' + (useGreedy ? ' + Greedy 초기해' : ''));
+}
+
+function displayAutoGenResult(slots, students, algoName) {
+  // Hard violations
+  const hardViolations = [];
+  for (const [a, b] of STATE.pairConstraints) {
+    const pa = periodOfInSlots(slots, a), pb = periodOfInSlots(slots, b);
+    if (pa !== null && pb !== null && pa === pb)
+      hardViolations.push(`${subjectById(a)?.name} ↔ ${subjectById(b)?.name} (${pa}교시)`);
+  }
+  for (const teacher of STATE.teachers) {
+    const seen = {};
+    for (const sid of teacher.subjectIds) {
+      const p = periodOfInSlots(slots, sid);
+      if (p !== null) {
+        if (seen[p]) hardViolations.push(`[${teacher.name}] ${subjectById(seen[p])?.name} ↔ ${subjectById(sid)?.name} (${p}교시)`);
+        else seen[p] = sid;
+      }
+    }
+  }
+
+  // Student stats
+  let conflictStudents = 0, totalConflicts = 0;
+  const stuDetails = students.map(s => {
+    const c = checkProfileInSlots(slots, s.subjects);
+    if (c.length) conflictStudents++;
+    totalConflicts += c.length;
+    return { ...s, conflicts: c };
+  });
+
+  const isOptimal = hardViolations.length === 0 && totalConflicts === 0;
+  const borderColor = isOptimal ? 'var(--success)' : hardViolations.length ? 'var(--danger)' : 'var(--warn)';
+
+  // Conflict student list (top 5)
+  const conflictList = stuDetails.filter(s => s.conflicts.length > 0).slice(0, 10)
+    .map(s => `<li style="font-size:12px;padding:2px 0">${s.name}: ${s.conflicts.map(c=>`${subjectById(c.a)?.name}↔${subjectById(c.b)?.name}`).join(', ')}</li>`).join('');
+
+  const numPeriods = slots.length;
+  const numRooms = slots[0]?.length || 2;
+
+  // Timetable preview (dynamic columns)
+  const roomHeaders = Array.from({length: numRooms}, (_, i) => `<th>교실 ${String.fromCharCode(65+i)}</th>`).join('');
+  const previewRowsDynamic = Array.from({length: numPeriods}, (_, pi) => {
+    const cells = slots[pi].map(sid => {
+      const sub = sid ? subjectById(sid) : null;
+      return sub ? `<td><span style="background:${catColor(sub.category)};color:white;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600">${sub.name}</span></td>`
+                 : `<td><span style="color:var(--text-muted);font-size:11px">-</span></td>`;
+    }).join('');
+    return `<tr><td style="text-align:center;font-weight:600;background:#f8fafc;color:var(--text-muted);width:60px">${pi+1}교시</td>${cells}</tr>`;
+  }).join('');
+
+  document.getElementById('ag-results').innerHTML = `
+    <div class="card" style="border-color:${borderColor}">
+      <h3 style="color:${borderColor};margin-bottom:4px">${isOptimal ? '✅ 최적 시간표 발견!' : hardViolations.length ? '❌ 하드 제약 위반 있음' : '⚠ 최선 시간표 (학생 충돌 최소화)'}</h3>
+      <p class="text-muted" style="margin-bottom:12px">알고리즘: ${algoName || 'Unknown'}</p>
+      <div class="flex gap-8" style="flex-wrap:wrap;margin-bottom:12px">
+        <div class="stat-card ${hardViolations.length?'stat-bad':'stat-ok'}"><div class="stat-val">${hardViolations.length}</div><div class="stat-lbl">하드 제약 위반</div></div>
+        <div class="stat-card ${conflictStudents?'stat-bad':'stat-ok'}"><div class="stat-val">${conflictStudents}/${students.length}</div><div class="stat-lbl">충돌 학생</div></div>
+        <div class="stat-card ${totalConflicts?'stat-bad':'stat-ok'}"><div class="stat-val">${totalConflicts}</div><div class="stat-lbl">총 충돌 건수</div></div>
+      </div>
+      ${hardViolations.length ? `<div style="background:var(--danger-light);padding:8px 12px;border-radius:6px;margin-bottom:10px;font-size:12px;color:var(--danger)"><strong>하드 제약 위반:</strong><br>${hardViolations.join('<br>')}</div>` : ''}
+      ${conflictList ? `<div style="background:var(--warn-light);padding:8px 12px;border-radius:6px;margin-bottom:10px"><strong style="font-size:12px;color:var(--warn)">충돌 학생 목록 (상위 10명):</strong><ul style="list-style:none;margin-top:4px">${conflictList}</ul></div>` : ''}
+      <div style="overflow-x:auto;margin-bottom:14px">
+        <table class="ag-result-tt">
+          <thead><tr><th style="width:60px">교시</th>${roomHeaders}</tr></thead>
+          <tbody>${previewRowsDynamic}</tbody>
+        </table>
+      </div>
+      <div class="flex gap-8" style="align-items:center">
+        <button class="btn btn-primary" onclick="applyAutoGen()">📋 이 시간표 적용</button>
+        <span class="text-muted">적용 후 시간표 배치 탭에서 세부 조정 가능 (현재 교실 수와 다르면 적용 불가)</span>
+      </div>
+    </div>`;
+  window._autoGenResult = slots;
+}
+
+function applyAutoGen() {
+  if (!window._autoGenResult) return;
+  const result = window._autoGenResult;
+  const numRooms = result[0]?.length || 2;
+  const numPeriods = result.length;
+  if (numRooms !== STATE.classrooms.length || numPeriods !== STATE.slots.length) {
+    alert(`현재 설정 (${STATE.classrooms.length}교실 × ${STATE.slots.length}교시)과 결과 (${numRooms}교실 × ${numPeriods}교시)가 다릅니다. 현재 설정에 맞는 결과만 적용할 수 있습니다.`);
+    return;
+  }
+  STATE.slots = result.map(row => [...row]);
+  saveState();
+  lastSimResult = null;
+  renderAll();
+  document.querySelector('[data-panel="timetable"]').click();
+  alert('자동 생성 시간표가 적용되었습니다! 시간표 배치 탭에서 확인하세요.');
+}
+
+// =====================================================
+// AUTO-SUGGEST (Hill Climbing)
+// =====================================================
+function countTotalConflicts() {
+  const allProfiles = generateAllProfiles();
+  return allProfiles.reduce((sum, p) => sum + checkProfile(p.subjects).length, 0);
+}
+
+function runSuggest() {
+  const iter = parseInt(document.getElementById('hc-iter').value) || 500;
+  const baseConflicts = countTotalConflicts();
+  const slots = STATE.slots.map(s => [...s]);
+
+  // Generate all possible swaps
+  const positions = [];
+  for (let p = 0; p < 10; p++)
+    for (let c = 0; c < 2; c++)
+      positions.push([p, c]);
+
+  const improvements = [];
+
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i+1; j < positions.length; j++) {
+      const [p1, c1] = positions[i];
+      const [p2, c2] = positions[j];
+
+      // Swap
+      const tmp = STATE.slots[p1][c1];
+      STATE.slots[p1][c1] = STATE.slots[p2][c2];
+      STATE.slots[p2][c2] = tmp;
+
+      const newConflicts = countTotalConflicts();
+      const diff = baseConflicts - newConflicts;
+
+      if (diff > 0) {
+        const s1 = STATE.slots[p1][c1] ? subjectById(STATE.slots[p1][c1])?.name : '(빈 슬롯)';
+        const s2 = STATE.slots[p2][c2] ? subjectById(STATE.slots[p2][c2])?.name : '(빈 슬롯)';
+        improvements.push({
+          diff, newConflicts,
+          p1, c1, p2, c2,
+          s1, s2,
+          label: `${p2+1}교시 ${c2===0?'A':'B'}(${s2||'빈칸'}) ↔ ${p1+1}교시 ${c1===0?'A':'B'}(${s1||'빈칸'})`,
+          slotsSnapshot: STATE.slots.map(s => [...s]),
+        });
+      }
+
+      // Restore
+      STATE.slots[p2][c2] = STATE.slots[p1][c1];
+      STATE.slots[p1][c1] = tmp;
+    }
+  }
+
+  improvements.sort((a, b) => b.diff - a.diff);
+  const top3 = improvements.slice(0, 3);
+
+  const el = document.getElementById('suggest-results');
+  if (!top3.length) {
+    el.innerHTML = `<div class="card"><p style="color:var(--success);font-weight:600">✅ 현재 시간표가 이미 최적입니다! (총 충돌: ${baseConflicts})</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="card" style="margin-bottom:10px"><p class="text-muted">현재 총 충돌 수: <strong>${baseConflicts}</strong></p></div>` +
+  top3.map((imp, idx) => `
+    <div class="suggest-card">
+      <h4>💡 제안 ${idx+1}</h4>
+      <div class="suggest-swap">교환: ${imp.label}</div>
+      <div class="suggest-diff pos">▼ 충돌 ${imp.diff}건 감소 → ${imp.newConflicts}건</div>
+      <div class="modal-actions" style="margin-top:8px">
+        <button class="btn btn-success" onclick="applySuggest(${idx})">이 배치 적용</button>
+      </div>
+    </div>
+  `).join('');
+  window._suggestResults = top3;
+}
+
+function applySuggest(idx) {
+  const imp = window._suggestResults[idx];
+  STATE.slots = imp.slotsSnapshot;
+  saveState();
+  renderAll();
+  alert('적용 완료! 시나리오 분석을 다시 실행하세요.');
+}
+
+// =====================================================
+// EDIT PANEL
+// =====================================================
+function renderEditPanel() {
+  // Subjects
+  const subEl = document.getElementById('edit-subjects');
+  subEl.innerHTML = STATE.subjects.map(s => {
+    const teacher = s.teacherId ? teacherById(s.teacherId) : null;
+    return `<div class="palette-item" style="margin-bottom:4px;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="palette-dot" style="background:${catColor(s.category)}"></div>
+        <span style="font-size:12px;font-weight:600">${s.name}</span>
+        <span style="font-size:10px;color:var(--text-muted)">${catLabel(s.category)} ${teacher?'· '+teacher.name:''}</span>
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px" onclick="openEditSubject('${s.id}')">편집</button>
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px" onclick="openSplitSubject('${s.id}')">분반</button>
+        <button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteSubject('${s.id}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Teachers
+  const tEl = document.getElementById('edit-teachers');
+  tEl.innerHTML = STATE.teachers.map(t => {
+    const subNames = t.subjectIds.map(id => subjectById(id)?.name || id).join(', ');
+    return `<div class="palette-item" style="margin-bottom:4px;justify-content:space-between">
+      <div>
+        <div style="font-size:12px;font-weight:600">${t.name}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${subNames || '(담당 없음)'}</div>
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px" onclick="openEditTeacher('${t.id}')">편집</button>
+        <button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteTeacher('${t.id}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Choice rules
+  const rEl = document.getElementById('edit-rules');
+  rEl.innerHTML = STATE.choiceRules.map(r => {
+    const opts = r.options.map(id => subjectById(id)?.name || id).join(', ');
+    return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="font-weight:600">${r.label}</span>
+          <span class="text-muted"> (${r.options.length}개 중 ${r.count}개 선택)</span>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="openEditRule('${r.id}')">편집</button>
+          <button class="btn btn-danger" style="font-size:11px;padding:2px 8px" onclick="deleteRule('${r.id}')">삭제</button>
+        </div>
+      </div>
+      <div class="text-muted" style="margin-top:4px">${opts}</div>
+    </div>`;
+  }).join('');
+
+  // Section groups
+  const secEl = document.getElementById('edit-sections');
+  secEl.innerHTML = (STATE.sectionGroups || []).map(g => {
+    const opts = g.options.map(id => subjectById(id)?.name || id).join(', ');
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px">
+      <div style="flex:1">
+        <span style="font-weight:600;font-size:13px">${g.label}</span>
+        <span class="text-muted" style="margin-left:6px">${opts}</span>
+      </div>
+      <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px" onclick="openEditSection('${g.id}')">편집</button>
+      <button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteSection('${g.id}')">삭제</button>
+    </div>`;
+  }).join('') || '<p class="text-muted">분반 그룹 없음</p>';
+
+  // Classroom/Period structure
+  const strEl = document.getElementById('edit-structure');
+  strEl.innerHTML = `
+    <div class="edit-row" style="margin-bottom:8px">
+      <label>교시 수</label>
+      <input type="number" id="str-periods" value="${STATE.slots.length}" min="1" max="20" style="width:70px">
+    </div>
+    <div class="edit-row" style="margin-bottom:8px">
+      <label>교실 수</label>
+      <input type="number" id="str-classrooms" value="${STATE.classrooms.length}" min="1" max="10" style="width:70px">
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
+      현재: ${STATE.slots.length}교시 × ${STATE.classrooms.length}교실 = ${STATE.slots.length * STATE.classrooms.length}슬롯 | 과목 ${STATE.subjects.length}개 | 여유 ${STATE.slots.length * STATE.classrooms.length - STATE.subjects.length}슬롯
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="applyStructure()">구조 적용</button>
+  `;
+
+  // Teacher hours
+  const thEl = document.getElementById('edit-teacher-hours');
+  const assignedSet = new Set(assignedSubjects());
+  thEl.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse">
+    <tr style="background:#f8fafc"><th style="padding:4px 8px;text-align:left;border:1px solid var(--border)">교사</th><th style="padding:4px 8px;text-align:center;border:1px solid var(--border)">담당 과목</th><th style="padding:4px 8px;text-align:center;border:1px solid var(--border)">배정 슬롯</th><th style="padding:4px 8px;text-align:center;border:1px solid var(--border)">시수(×3)</th></tr>
+    ${STATE.teachers.map(t => {
+      const assignedCount = t.subjectIds.filter(id => assignedSet.has(id)).length;
+      return `<tr>
+        <td style="padding:4px 8px;border:1px solid var(--border);font-weight:600">${t.name}</td>
+        <td style="padding:4px 8px;border:1px solid var(--border);text-align:center">${t.subjectIds.length}</td>
+        <td style="padding:4px 8px;border:1px solid var(--border);text-align:center">${assignedCount}</td>
+        <td style="padding:4px 8px;border:1px solid var(--border);text-align:center;font-weight:700;color:var(--primary)">${assignedCount * 3}</td>
+      </tr>`;
+    }).join('')}
+    <tr style="background:#f8fafc;font-weight:700">
+      <td style="padding:4px 8px;border:1px solid var(--border)">합계</td>
+      <td style="padding:4px 8px;border:1px solid var(--border);text-align:center">${STATE.teachers.reduce((s,t)=>s+t.subjectIds.length,0)}</td>
+      <td style="padding:4px 8px;border:1px solid var(--border);text-align:center">${STATE.teachers.reduce((s,t)=>s+t.subjectIds.filter(id=>assignedSet.has(id)).length,0)}</td>
+      <td style="padding:4px 8px;border:1px solid var(--border);text-align:center;color:var(--primary)">${STATE.teachers.reduce((s,t)=>s+t.subjectIds.filter(id=>assignedSet.has(id)).length,0)*3}</td>
+    </tr>
+  </table>`;
+
+  // Pair constraints
+  const pEl = document.getElementById('edit-pairs');
+  pEl.innerHTML = STATE.pairConstraints.map(([a,b], idx) => {
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px;border:1px solid var(--border);border-radius:6px">
+      <span style="font-weight:600;font-size:13px">${subjectById(a)?.name||a} ↔ ${subjectById(b)?.name||b}</span>
+      <span class="text-muted">(반드시 다른 교시)</span>
+      <button class="btn btn-danger" style="margin-left:auto;padding:2px 8px;font-size:11px" onclick="deletePair(${idx})">삭제</button>
+    </div>`;
+  }).join('');
+}
+
+function openEditSubject(id) {
+  const s = subjectById(id);
+  const categories = ['korean','english','math','pe','rne','science','humanities','liberal'];
+  const teacherOpts = [['','(담당 미정)'], ...STATE.teachers.map(t => [t.id, t.name])];
+  const pairOpts = [['', '(없음)'], ...STATE.subjects.filter(x=>x.id!==id).map(x=>[x.id,x.name])];
+
+  const html = `
+    <div class="edit-row"><label>이름</label><input type="text" id="es-name" value="${s.name}"></div>
+    <div class="edit-row"><label>카테고리</label><select id="es-cat">
+      ${categories.map(c=>`<option value="${c}" ${s.category===c?'selected':''}>${catLabel(c)}</option>`).join('')}
+    </select></div>
+    <div class="edit-row"><label>담당교사</label><select id="es-teacher">
+      ${teacherOpts.map(([v,l])=>`<option value="${v}" ${s.teacherId===v?'selected':''}>${l}</option>`).join('')}
+    </select></div>
+    <div class="edit-row"><label>쌍 과목</label><select id="es-pair">
+      ${pairOpts.map(([v,l])=>`<option value="${v}" ${s.pairId===v?'selected':''}>${l}</option>`).join('')}
+    </select></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveSubject('${id}')">저장</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('과목 편집: ' + s.name, html);
+}
+
+function saveSubject(id) {
+  const s = subjectById(id);
+  s.name = document.getElementById('es-name').value.trim();
+  s.category = document.getElementById('es-cat').value;
+  s.teacherId = document.getElementById('es-teacher').value || null;
+  s.pairId = document.getElementById('es-pair').value || null;
+  // sync teacher's subjectIds
+  for (const t of STATE.teachers) {
+    t.subjectIds = t.subjectIds.filter(x => x !== id);
+  }
+  if (s.teacherId) {
+    const t = teacherById(s.teacherId);
+    if (t && !t.subjectIds.includes(id)) t.subjectIds.push(id);
+  }
+  saveState(); closeModal(); renderAll();
+}
+
+function openAddSubject() {
+  const html = `
+  if (STATE.pairGroups) STATE.pairGroups.forEach(g => g.options = g.options.filter(x => x !== id));
+  if (STATE.sectionGroups) {
+    STATE.sectionGroups.forEach(g => g.options = g.options.filter(x => x !== id));
+    STATE.sectionGroups = STATE.sectionGroups.filter(g => g.options.length >= 2);
+  }aceholder="과목명"></div>
+    <div class="edit-row"><label>카테고리</label><select id="as-cat">
+      ${['korean','english','math','pe','rne','science','humanities','liberal'].map(c=>`<option value="${c}">${catLabel(c)}</option>`).join('')}
+    </select></div>
+    <div class="edit-row"><label>담당교사</label><select id="as-teacher">
+      <option value="">(담당 미정)</option>
+      ${STATE.teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}
+    </select></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="addSubject()">추가</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('과목 추가', html);
+}
+
+function addSubject() {
+  const name = document.getElementById('as-name').value.trim();
+  if (!name) { alert('이름을 입력하세요.'); return; }
+  const id = 'sub_' + Date.now();
+  const teacherId = document.getElementById('as-teacher').value || null;
+  STATE.subjects.push({ id, name, teacherId, category: document.getElementById('as-cat').value, pairId: null });
+  STATE.slots.forEach(s => s); // no change needed
+  if (teacherId) {
+    const t = teacherById(teacherId);
+    if (t) t.subjectIds.push(id);
+  }
+  saveState(); closeModal(); renderAll();
+}
+
+function deleteSubject(id) {
+  if (!confirm(`'${subjectById(id)?.name}' 과목을 삭제하시겠습니까?`)) return;
+  STATE.subjects = STATE.subjects.filter(s => s.id !== id);
+  STATE.slots = STATE.slots.map(row => row.map(s => s === id ? null : s));
+  STATE.pairConstraints = STATE.pairConstraints.filter(([a,b]) => a!==id && b!==id);
+  for (const t of STATE.teachers) t.subjectIds = t.subjectIds.filter(x => x !== id);
+  STATE.choiceRules.forEach(r => r.options = r.options.filter(x => x !== id));
+  STATE.pairGroups.forEach(g => g.options = g.options.filter(x => x !== id));
+  saveState(); renderAll();
+}
+
+function openEditTeacher(id) {
+  const t = teacherById(id);
+  const html = `
+    <div class="edit-row"><label>이름</label><input type="text" id="et-name" value="${t.name}"></div>
+    <div style="margin-bottom:8px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">담당 과목</div>
+    <div class="tag-list" id="et-tags">
+      ${t.subjectIds.map(id => `<span class="tag">${subjectById(id)?.name||id}<span class="tag-remove" onclick="removeTeacherSub('${t.id}','${id}')">×</span></span>`).join('')}
+    </div>
+    <select id="et-add-sub" style="margin-top:6px;width:100%">
+      <option value="">과목 추가...</option>
+      ${STATE.subjects.filter(s=>!t.subjectIds.includes(s.id)).map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost" style="margin-top:4px;width:100%" onclick="addTeacherSub('${id}')">+ 추가</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveTeacher('${id}')">저장</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('교사 편집: ' + t.name, html);
+}
+
+function removeTeacherSub(tid, sid) {
+  const t = teacherById(tid);
+  t.subjectIds = t.subjectIds.filter(x => x !== sid);
+  const sub = subjectById(sid);
+  if (sub && sub.teacherId === tid) sub.teacherId = null;
+  saveState();
+  openEditTeacher(tid); // re-render modal
+}
+
+function addTeacherSub(tid) {
+  const sid = document.getElementById('et-add-sub').value;
+  if (!sid) return;
+  const t = teacherById(tid);
+  if (!t.subjectIds.includes(sid)) {
+    t.subjectIds.push(sid);
+    const sub = subjectById(sid);
+    if (sub) sub.teacherId = tid;
+  }
+  saveState();
+  openEditTeacher(tid);
+}
+
+function saveTeacher(id) {
+  const t = teacherById(id);
+  t.name = document.getElementById('et-name').value.trim();
+  saveState(); closeModal(); renderAll();
+}
+
+function openAddTeacher() {
+  const html = `
+    <div class="edit-row"><label>이름</label><input type="text" id="nt-name" placeholder="교사명"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="addTeacher()">추가</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('교사 추가', html);
+}
+function addTeacher() {
+  const name = document.getElementById('nt-name').value.trim();
+  if (!name) { alert('이름을 입력하세요.'); return; }
+  STATE.teachers.push({ id: 't_' + Date.now(), name, subjectIds: [] });
+  saveState(); closeModal(); renderAll();
+}
+function deleteTeacher(id) {
+  if (!confirm('교사를 삭제하면 담당 과목 연결이 해제됩니다. 계속하시겠습니까?')) return;
+  STATE.teachers = STATE.teachers.filter(t => t.id !== id);
+  STATE.subjects.forEach(s => { if (s.teacherId === id) s.teacherId = null; });
+  saveState(); renderAll();
+}
+
+function openEditRule(id) {
+  const r = STATE.choiceRules.find(x => x.id === id);
+  const html = `
+    <div class="edit-row"><label>라벨</label><input type="text" id="er-label" value="${r.label}"></div>
+    <div class="edit-row"><label>선택 수</label><input type="number" id="er-count" value="${r.count}" min="1" max="10" style="width:60px"></div>
+    <div style="margin-bottom:8px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">선택 옵션</div>
+    <div class="tag-list">
+      ${r.options.map(sid => `<span class="tag">${subjectById(sid)?.name||sid}<span class="tag-remove" onclick="removeRuleOpt('${id}','${sid}')">×</span></span>`).join('')}
+    </div>
+    <select id="er-add" style="margin-top:6px;width:100%">
+      <option value="">과목 추가...</option>
+      ${STATE.subjects.filter(s=>!r.options.includes(s.id)).map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost" style="margin-top:4px;width:100%" onclick="addRuleOpt('${id}')">+ 추가</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveRule('${id}')">저장</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('선택 규칙 편집: ' + r.label, html);
+}
+function removeRuleOpt(rid, sid) {
+  const r = STATE.choiceRules.find(x=>x.id===rid);
+  r.options = r.options.filter(x=>x!==sid);
+  saveState(); openEditRule(rid);
+}
+function addRuleOpt(rid) {
+  const sid = document.getElementById('er-add').value;
+  if (!sid) return;
+  const r = STATE.choiceRules.find(x=>x.id===rid);
+  if (!r.options.includes(sid)) r.options.push(sid);
+  saveState(); openEditRule(rid);
+}
+function saveRule(rid) {
+  const r = STATE.choiceRules.find(x=>x.id===rid);
+  r.label = document.getElementById('er-label').value.trim();
+  r.count = parseInt(document.getElementById('er-count').value) || 1;
+  saveState(); closeModal(); renderAll();
+}
+function deleteRule(rid) {
+  const r = STATE.choiceRules.find(x=>x.id===rid);
+  if (!confirm(`선택 규칙 '${r?.label}'을(를) 삭제하시겠습니까?`)) return;
+  STATE.choiceRules = STATE.choiceRules.filter(x=>x.id!==rid);
+  saveState(); renderAll();
+}
+function openAddRule() {
+  const html = `
+    <div class="edit-row"><label>라벨</label><input type="text" id="nr-label" placeholder="예: 과학 택3"></div>
+    <div class="edit-row"><label>선택 수</label><input type="number" id="nr-count" value="1" min="1" max="10" style="width:60px"></div>
+    <p class="text-muted" style="margin-top:6px">규칙 생성 후 편집에서 과목을 추가하세요.</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="addRule()">추가</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('선택 규칙 추가', html);
+}
+function addRule() {
+  const label = document.getElementById('nr-label').value.trim();
+  if (!label) { alert('라벨을 입력하세요.'); return; }
+  const count = parseInt(document.getElementById('nr-count').value) || 1;
+  STATE.choiceRules.push({ id: 'r_' + Date.now(), label, options: [], count });
+  saveState(); closeModal(); renderAll();
+}
+
+// =====================================================
+// SECTION (분반) MANAGEMENT
+// =====================================================
+function openAddSection() {
+  const html = `
+    <div class="edit-row"><label>그룹명</label><input type="text" id="ns-label" placeholder="예: 물리"></div>
+    <div style="margin-bottom:8px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">분반에 포함할 과목 선택 (복수 선택)</div>
+    <div style="max-height:200px;overflow-y:auto">
+      ${STATE.subjects.map(s => `<label class="stu-cb-label"><input type="checkbox" value="${s.id}" class="ns-opt-cb"> ${s.name}</label>`).join('')}
+    </div></div>
+    <p class="text-muted" style="font-size:11px">선택한 과목들이 하나의 분반 그룹을 구성합니다. 학생은 그 중 하나만 이수하며, 시간표에 따라 자동 배정됩니다.</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="addSection()">추가</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('분반 그룹 추가', html);
+}
+function addSection() {
+  const label = document.getElementById('ns-label').value.trim();
+  if (!label) { alert('그룹명을 입력하세요.'); return; }
+  const opts = [...document.querySelectorAll('.ns-opt-cb:checked')].map(cb => cb.value);
+  if (opts.length < 2) { alert('분반은 최소 2과목 이상이어야 합니다.'); return; }
+  if (!STATE.sectionGroups) STATE.sectionGroups = [];
+  STATE.sectionGroups.push({ id: 'g_' + Date.now(), label, options: opts });
+  // Also add corresponding pair constraints (all pairs must be different periods)
+  for (let i = 0; i < opts.length; i++) {
+    for (let j = i+1; j < opts.length; j++) {
+      const exists = STATE.pairConstraints.some(([a,b]) => (a===opts[i]&&b===opts[j])||(a===opts[j]&&b===opts[i]));
+      if (!exists) STATE.pairConstraints.push([opts[i], opts[j]]);
+    }
+  }
+  saveState(); closeModal(); renderAll();
+}
+function openEditSection(gid) {
+  const g = (STATE.sectionGroups||[]).find(x=>x.id===gid);
+  if (!g) return;
+  const html = `
+    <div class="edit-row"><label>그룹명</label><input type="text" id="es-label" value="${g.label}"></div>
+    <div style="margin-bottom:8px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">포함 과목</div>
+    <div class="tag-list">
+      ${g.options.map(sid => `<span class="tag">${subjectById(sid)?.name||sid}<span class="tag-remove" onclick="removeSectionOpt('${gid}','${sid}')">×</span></span>`).join('')}
+    </div>
+    <select id="es-add" style="margin-top:6px;width:100%">
+      <option value="">과목 추가...</option>
+      ${STATE.subjects.filter(s=>!g.options.includes(s.id)).map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost" style="margin-top:4px;width:100%" onclick="addSectionOpt('${gid}')">+ 추가</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveSection('${gid}')">저장</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('분반 그룹 편집: ' + g.label, html);
+}
+function removeSectionOpt(gid, sid) {
+  const g = (STATE.sectionGroups||[]).find(x=>x.id===gid);
+  if (g) { g.options = g.options.filter(x=>x!==sid); saveState(); openEditSection(gid); }
+}
+function addSectionOpt(gid) {
+  const sid = document.getElementById('es-add').value;
+  if (!sid) return;
+  const g = (STATE.sectionGroups||[]).find(x=>x.id===gid);
+  if (g && !g.options.includes(sid)) { g.options.push(sid); saveState(); openEditSection(gid); }
+}
+function saveSection(gid) {
+  const g = (STATE.sectionGroups||[]).find(x=>x.id===gid);
+  if (g) g.label = document.getElementById('es-label').value.trim();
+  saveState(); closeModal(); renderAll();
+}
+function deleteSection(gid) {
+  const g = (STATE.sectionGroups||[]).find(x=>x.id===gid);
+  if (!confirm(`분반 그룹 '${g?.label}'을(를) 삭제하시겠습니까?`)) return;
+  STATE.sectionGroups = (STATE.sectionGroups||[]).filter(x=>x.id!==gid);
+  saveState(); renderAll();
+}
+
+// =====================================================
+// SUBJECT SECTIONING (과목 분반화)
+// =====================================================
+function openSplitSubject(id) {
+  const s = subjectById(id);
+  if (!s) return;
+  // Check if already in a section group
+  const existingGroup = (STATE.sectionGroups||[]).find(g => g.options.includes(id));
+  if (existingGroup) {
+    alert(`'${s.name}'은(는) 이미 분반 그룹 '${existingGroup.label}'에 속해 있습니다.`);
+    return;
+  }
+  const html = `
+    <p style="font-size:12px;margin-bottom:10px">'<strong>${s.name}</strong>'을(를) 여러 분반으로 나눕니다.</p>
+    <div class="edit-row"><label>분반 수</label><input type="number" id="sp-count" value="2" min="2" max="5" style="width:60px"></div>
+    <p class="text-muted" style="margin-top:8px;font-size:11px">
+      • 원래 과목이 삭제되고, 분반별 과목(예: ${s.name}1, ${s.name}2)이 생성됩니다.<br>
+      • 분반 그룹이 자동 생성되며, 쌍 제약도 추가됩니다.<br>
+      • 선택 규칙에서 원래 과목은 첫 번째 분반으로 대체됩니다.
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="splitSubject('${id}')">분반 생성</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('과목 분반화: ' + s.name, html);
+}
+
+function splitSubject(id) {
+  const s = subjectById(id);
+  if (!s) return;
+  const count = parseInt(document.getElementById('sp-count').value) || 2;
+  const newIds = [];
+
+  // Create new section subjects
+  for (let i = 1; i <= count; i++) {
+    const newId = id + '_s' + i;
+    newIds.push(newId);
+    STATE.subjects.push({
+      id: newId,
+      name: s.name + i,
+      teacherId: s.teacherId,
+      category: s.category,
+      pairId: null
+    });
+    // Add to teacher
+    if (s.teacherId) {
+      const t = teacherById(s.teacherId);
+      if (t && !t.subjectIds.includes(newId)) t.subjectIds.push(newId);
+    }
+  }
+
+  // Create section group
+  if (!STATE.sectionGroups) STATE.sectionGroups = [];
+  STATE.sectionGroups.push({ id: 'g_' + Date.now(), label: s.name, options: newIds });
+
+  // Add pair constraints between all new sections
+  for (let i = 0; i < newIds.length; i++) {
+    for (let j = i+1; j < newIds.length; j++) {
+      STATE.pairConstraints.push([newIds[i], newIds[j]]);
+    }
+  }
+
+  // Update choice rules: replace original id with first new section id
+  for (const rule of STATE.choiceRules) {
+    const idx = rule.options.indexOf(id);
+    if (idx !== -1) {
+      rule.options[idx] = newIds[0]; // replace with first section as representative
+    }
+  }
+
+  // Remove original subject from slots
+  STATE.slots = STATE.slots.map(row => row.map(sid => sid === id ? null : sid));
+
+  // Remove original from pair constraints
+  STATE.pairConstraints = STATE.pairConstraints.filter(([a,b]) => a!==id && b!==id);
+
+  // Remove original from teacher
+  for (const t of STATE.teachers) {
+    t.subjectIds = t.subjectIds.filter(x => x !== id);
+  }
+
+  // Remove original subject
+  STATE.subjects = STATE.subjects.filter(x => x.id !== id);
+
+  // Add new periods/slots if needed (subject count exceeded slot count)
+  const totalSlots = STATE.slots.length * STATE.classrooms.length;
+  const extraNeeded = STATE.subjects.length - totalSlots;
+  if (extraNeeded > 0) {
+    const extraPeriods = Math.ceil(extraNeeded / STATE.classrooms.length);
+    for (let i = 0; i < extraPeriods; i++) {
+      STATE.slots.push(Array(STATE.classrooms.length).fill(null));
+    }
+    alert(`과목 수가 슬롯 수를 초과하여 ${extraPeriods}교시를 자동 추가했습니다.`);
+  }
+
+  saveState(); closeModal(); renderAll();
+  alert(`'${s.name}'이(가) ${count}개 분반으로 분할되었습니다.`);
+}
+
+// =====================================================
+// STRUCTURE (교실/교시) ADJUSTMENT
+// =====================================================
+function applyStructure() {
+  const newPeriods = parseInt(document.getElementById('str-periods').value) || 10;
+  const newClassrooms = parseInt(document.getElementById('str-classrooms').value) || 2;
+  const oldPeriods = STATE.slots.length;
+  const oldClassrooms = STATE.classrooms.length;
+
+  if (newPeriods < 1 || newClassrooms < 1) { alert('최소 1 이상이어야 합니다.'); return; }
+  if (newPeriods * newClassrooms < STATE.subjects.length) {
+    if (!confirm(`슬롯(${newPeriods*newClassrooms})이 과목 수(${STATE.subjects.length})보다 적습니다. 일부 배정이 유실됩니다. 계속하시겠습니까?`)) return;
+  }
+
+  // Adjust slots array
+  const newSlots = Array.from({length: newPeriods}, (_, pi) => {
+    const row = [];
+    for (let ci = 0; ci < newClassrooms; ci++) {
+      row.push(pi < oldPeriods && ci < oldClassrooms ? (STATE.slots[pi]?.[ci] || null) : null);
+    }
+    return row;
+  });
+  STATE.slots = newSlots;
+
+  // Adjust classrooms array
+  while (STATE.classrooms.length < newClassrooms) {
+    const idx = STATE.classrooms.length;
+    STATE.classrooms.push({ id: 'rm_' + String.fromCharCode(97 + idx), name: '교실 ' + String.fromCharCode(65 + idx) });
+  }
+  while (STATE.classrooms.length > newClassrooms) {
+    STATE.classrooms.pop();
+  }
+
+  saveState(); renderAll();
+  alert(`구조 변경 완료: ${newPeriods}교시 × ${newClassrooms}교실 = ${newPeriods*newClassrooms}슬롯`);
+}
+
+function openAddPair() {
+  const html = `
+    <div class="edit-row"><label>과목 A</label><select id="np-a">
+      ${STATE.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+    </select></div>
+    <div class="edit-row"><label>과목 B</label><select id="np-b">
+      ${STATE.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+    </select></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="addPair()">추가</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>`;
+  openModal('쌍 제약 추가', html);
+}
+function addPair() {
+  const a = document.getElementById('np-a').value;
+  const b = document.getElementById('np-b').value;
+  if (a === b) { alert('같은 과목을 선택하셨습니다.'); return; }
+  STATE.pairConstraints.push([a, b]);
+  saveState(); closeModal(); renderAll();
+}
+function deletePair(idx) {
+  STATE.pairConstraints.splice(idx, 1);
+  saveState(); renderAll();
+}
+
+// =====================================================
+// TABS
+// =====================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+    if (btn.dataset.panel === 'edit') renderEditPanel();
+    if (btn.dataset.panel === 'students') { if (STATE.students.length) checkAllStudents(); else renderStudents(); }
+    if (btn.dataset.panel === 'autogen') {
+      if (!STATE.students.length) {
+        document.getElementById('ag-results').innerHTML = '<p class="text-muted" style="padding:10px">먼저 학생 관리 탭에서 학생을 추가하거나 자동 생성하세요.</p>';
+      }
+    }
+  });
+});
+
+// Filter changes
+document.getElementById('sc-filter').addEventListener('change', () => { if (lastSimResult) renderScenarioTable(lastSimResult); });
+document.getElementById('sc-liberal').addEventListener('change', () => { if (lastSimResult) renderScenarioTable(lastSimResult); });
+document.getElementById('sc-hum').addEventListener('change', () => { if (lastSimResult) renderScenarioTable(lastSimResult); });
+
+// =====================================================
+// BRUTE FORCE - 전수 시간표 시나리오 분석
+// =====================================================
+let _bfRunning = false;
+let _bfResults = [];
+let _bfSortField = 'rate'; // 'rate', 'ok', 'fail', 'total'
+let _bfSortAsc = false; // false = 가능률 높은 순 (역순)
+
+function stopBruteForce() { _bfRunning = false; }
+
+async function runBruteForce() {
+  const total = parseInt(document.getElementById('bf-count').value) || 5000;
+  const method = document.getElementById('bf-method').value;
+  const numPeriods = STATE.slots.length;
+  const numClassrooms = STATE.classrooms.length;
+  const subjectIds = STATE.subjects.map(s => s.id);
+  const n = subjectIds.length;
+
+  // Pre-generate all student profiles (scenario combinations)
+  const allProfiles = generateAllProfiles();
+  const profileCount = allProfiles.length;
+
+  if (profileCount === 0) { alert('시나리오 프로필이 없습니다. 선택 규칙을 확인하세요.'); return; }
+
+  _bfRunning = true;
+  _bfResults = [];
+  document.getElementById('bf-run-btn').style.display = 'none';
+  document.getElementById('bf-stop-btn').style.display = '';
+  document.getElementById('bf-progress').style.display = '';
+  document.getElementById('bf-results').innerHTML = '';
+
+  const startTime = Date.now();
+  let validCount = 0;
+  let bestRate = 0;
+  const BATCH_SIZE = 50; // smaller batch since each is expensive (scenario analysis)
+
+  function randInt(max) { return Math.floor(Math.random() * max); }
+
+  function randomSlots() {
+    const arr = [...subjectIds];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = randInt(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return Array.from({length: numPeriods}, (_, p) => {
+      const row = [];
+      for (let c = 0; c < numClassrooms; c++) {
+        const idx = p * numClassrooms + c;
+        row.push(idx < arr.length ? arr[idx] : null);
+      }
+      return row;
+    });
+  }
+
+  function greedySlots() {
+    const strategies = ['saturation', 'degree', 'weight'];
+    const strat = strategies[randInt(3)];
+    // Use empty students array for greedy coloring if no students yet
+    const stu = STATE.students.length ? STATE.students : [{subjects: allProfiles[randInt(profileCount)].subjects}];
+    const slots = greedyColoring(stu, numPeriods, numClassrooms, strat);
+    const swaps = 1 + randInt(4);
+    for (let s = 0; s < swaps; s++) {
+      const p1 = randInt(numPeriods), c1 = randInt(numClassrooms);
+      const p2 = randInt(numPeriods), c2 = randInt(numClassrooms);
+      const tmp = slots[p1][c1];
+      slots[p1][c1] = slots[p2][c2];
+      slots[p2][c2] = tmp;
+    }
+    return slots;
+  }
+
+  function systematicSlots(seed) {
+    const arr = [...subjectIds];
+    let s = seed;
+    for (let i = arr.length - 1; i > 0; i--) {
+      s = (s * 1664525 + 1013904223) & 0xffffffff;
+      const j = ((s >>> 0) % (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return Array.from({length: numPeriods}, (_, p) => {
+      const row = [];
+      for (let c = 0; c < numClassrooms; c++) {
+        const idx = p * numClassrooms + c;
+        row.push(idx < arr.length ? arr[idx] : null);
+      }
+      return row;
+    });
+  }
+
+  function hasHardViolation(slots) {
+    for (const [a, b] of STATE.pairConstraints) {
+      const pa = periodOfInSlots(slots, a), pb = periodOfInSlots(slots, b);
+      if (pa !== null && pb !== null && pa === pb) return true;
+    }
+    for (const teacher of STATE.teachers) {
+      const seen = {};
+      for (const sid of teacher.subjectIds) {
+        const p = periodOfInSlots(slots, sid);
+        if (p !== null) { if (seen[p]) return true; seen[p] = true; }
+      }
+    }
+    return false;
+  }
+
+  // Run scenario analysis for a given slot configuration
+  function analyzeScenario(slots) {
+    let okCount = 0;
+    let totalConflicts = 0;
+    const hotspots = {};
+
+    for (const profile of allProfiles) {
+      const conflicts = checkProfileInSlots(slots, profile.subjects);
+      if (conflicts.length === 0) {
+        okCount++;
+      } else {
+        totalConflicts += conflicts.length;
+        for (const c of conflicts) {
+          const key = [c.a, c.b].sort().join('|');
+          hotspots[key] = (hotspots[key] || 0) + 1;
+        }
+      }
+    }
+
+    const rate = okCount / profileCount;
+    // Top 3 hotspot pairs
+    const topHotspots = Object.entries(hotspots)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([key, cnt]) => {
+        const [a, b] = key.split('|');
+        return `${subjectById(a)?.name||a}↔${subjectById(b)?.name||b}(${cnt})`;
+      });
+
+    return { okCount, failCount: profileCount - okCount, rate, totalConflicts, topHotspots };
+  }
+
+  // Deduplicate: use slot key to avoid analyzing identical timetables
+  const seen = new Set();
+  function slotsKey(slots) {
+    return slots.map(row => row.join(',')).join('|');
+  }
+
+  for (let batch = 0; batch < Math.ceil(total / BATCH_SIZE); batch++) {
+    if (!_bfRunning) break;
+
+    const batchEnd = Math.min((batch + 1) * BATCH_SIZE, total);
+    for (let i = batch * BATCH_SIZE; i < batchEnd; i++) {
+      if (!_bfRunning) break;
+
+      let slots;
+      if (method === 'random') slots = randomSlots();
+      else if (method === 'greedy') slots = i % 3 === 0 ? greedySlots() : randomSlots();
+      else slots = systematicSlots(i + 1);
+
+      if (hasHardViolation(slots)) continue;
+
+      const key = slotsKey(slots);
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      validCount++;
+      const result = analyzeScenario(slots);
+      if (result.rate > bestRate) bestRate = result.rate;
+
+      _bfResults.push({
+        slots: slots.map(r => [...r]),
+        ...result,
+        idx: validCount,
+      });
+    }
+
+    // Progress update
+    const pct = Math.round(batchEnd / total * 100);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    document.getElementById('bf-progress-bar').style.width = pct + '%';
+    document.getElementById('bf-progress-text').textContent = `${batchEnd.toLocaleString()}/${total.toLocaleString()} 생성 (${elapsed}초)`;
+    document.getElementById('bf-progress-stats').textContent = `유효: ${validCount} | 프로필 수: ${profileCount} | 최고 가능률: ${Math.round(bestRate*100)}%`;
+
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  _bfRunning = false;
+  document.getElementById('bf-run-btn').style.display = '';
+  document.getElementById('bf-stop-btn').style.display = 'none';
+  document.getElementById('bf-progress').style.display = 'none';
+
+  // Default sort: 가능률 내림차순 (높은 게 위)
+  _bfSortField = 'rate';
+  _bfSortAsc = false;
+  _bfResults.sort((a, b) => b.rate - a.rate);
+
+  renderBruteForceResults();
+}
+
+function toggleBfSort(field) {
+  if (_bfSortField === field) {
+    _bfSortAsc = !_bfSortAsc;
+  } else {
+    _bfSortField = field;
+    _bfSortAsc = field === 'fail' || field === 'totalConflicts'; // these default ascending
+  }
+  _bfResults.sort((a, b) => {
+    const va = a[_bfSortField], vb = b[_bfSortField];
+    return _bfSortAsc ? va - vb : vb - va;
+  });
+  renderBruteForceResults();
+}
+
+function renderBruteForceResults() {
+  if (!_bfResults.length) {
+    document.getElementById('bf-results').innerHTML = '<div class="card"><p class="text-muted">유효한 시간표를 찾지 못했습니다. 탐색 수를 늘려보세요.</p></div>';
+    return;
+  }
+
+  const allProfiles = generateAllProfiles();
+  const profileCount = allProfiles.length;
+  const perfectCount = _bfResults.filter(r => r.rate === 1).length;
+  const bestResult = _bfResults.reduce((best, r) => r.rate > best.rate ? r : best, _bfResults[0]);
+  const worstResult = _bfResults.reduce((worst, r) => r.rate < worst.rate ? r : worst, _bfResults[0]);
+
+  // Rate distribution histogram
+  const bucketCount = 20;
+  const histogram = Array(bucketCount).fill(0);
+  for (const r of _bfResults) {
+    const bucket = Math.min(Math.floor(r.rate * bucketCount), bucketCount - 1);
+    histogram[bucket]++;
+  }
+  const histMax = Math.max(...histogram);
+
+  const histHtml = histogram.map((cnt, i) => {
+    const w = Math.round(cnt / (histMax || 1) * 100);
+    const from = Math.round(i / bucketCount * 100);
+    const to = Math.round((i + 1) / bucketCount * 100);
+    const color = from >= 95 ? 'var(--success)' : from >= 70 ? 'var(--primary)' : from >= 40 ? 'var(--warn)' : 'var(--danger)';
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+      <span style="min-width:60px;text-align:right;font-size:11px;color:var(--text-muted)">${from}-${to}%</span>
+      <div style="flex:1;height:14px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${w}%;background:${color};border-radius:3px"></div>
+      </div>
+      <span style="min-width:40px;font-size:11px;font-weight:600">${cnt}</span>
+    </div>`;
+  }).join('');
+
+  // Sort indicators
+  const sortIcons = {};
+  ['rate', 'okCount', 'failCount', 'totalConflicts'].forEach(f => {
+    sortIcons[f] = _bfSortField === f ? (_bfSortAsc ? ' ▲' : ' ▼') : '';
+  });
+
+  // Table rows
+  const displayRows = _bfResults.slice(0, 200);
+  const tableRows = displayRows.map((r, idx) => {
+    const slotPreview = r.slots.map((row) => {
+      return row.map(sid => subjectById(sid)?.name || '-').join('/');
+    }).join(' | ');
+
+    const rateClass = r.rate === 1 ? 'ok' : r.rate >= 0.8 ? '' : 'fail';
+    const ratePct = Math.round(r.rate * 100);
+    return `<tr>
+      <td style="text-align:center">${idx + 1}</td>
+      <td class="${rateClass}" style="text-align:center;font-weight:700">${ratePct}%</td>
+      <td style="text-align:center">${r.okCount}/${profileCount}</td>
+      <td style="text-align:center;color:var(--danger)">${r.failCount}</td>
+      <td style="text-align:center">${r.totalConflicts}</td>
+      <td style="font-size:10px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.topHotspots.join(', ') || '-'}</td>
+      <td style="font-size:10px;color:var(--text-muted);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${slotPreview}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <button class="btn btn-ghost" style="padding:2px 6px;font-size:11px" onclick="previewBfResult(${idx})">👁</button>
+        <button class="btn btn-primary" style="padding:2px 6px;font-size:11px" onclick="applyBfResult(${idx})">적용</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('bf-results').innerHTML = `
+    <div class="card">
+      <h3>전수 시나리오 분석 결과</h3>
+      <div class="flex gap-8" style="flex-wrap:wrap;margin-bottom:12px">
+        <div class="stat-card"><div class="stat-val">${_bfResults.length}</div><div class="stat-lbl">유효 시간표 수</div></div>
+        <div class="stat-card"><div class="stat-val">${profileCount}</div><div class="stat-lbl">시나리오 프로필 수</div></div>
+        <div class="stat-card stat-ok"><div class="stat-val">${perfectCount}</div><div class="stat-lbl">100% 가능 시간표</div></div>
+        <div class="stat-card stat-ok"><div class="stat-val">${Math.round(bestResult.rate*100)}%</div><div class="stat-lbl">최고 가능률</div></div>
+        <div class="stat-card stat-bad"><div class="stat-val">${Math.round(worstResult.rate*100)}%</div><div class="stat-lbl">최저 가능률</div></div>
+      </div>
+      <h3 style="margin-top:14px">가능률 분포</h3>
+      <div style="margin-top:8px">${histHtml}</div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <h3 style="margin:0">시간표 순위 (상위 ${Math.min(200, _bfResults.length)}개)</h3>
+      </div>
+      <div style="overflow-x:auto;max-height:60vh;overflow-y:auto">
+        <table class="sc-table">
+          <thead><tr>
+            <th style="width:40px">#</th>
+            <th style="cursor:pointer;width:70px" onclick="toggleBfSort('rate')">가능률${sortIcons.rate}</th>
+            <th style="cursor:pointer;width:80px" onclick="toggleBfSort('okCount')">가능${sortIcons.okCount}</th>
+            <th style="cursor:pointer;width:60px" onclick="toggleBfSort('failCount')">불가${sortIcons.failCount}</th>
+            <th style="cursor:pointer;width:70px" onclick="toggleBfSort('totalConflicts')">충돌합${sortIcons.totalConflicts}</th>
+            <th>핫스팟</th>
+            <th>시간표 배치</th>
+            <th style="width:80px">동작</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function previewBfResult(idx) {
+  const r = _bfResults[idx];
+  if (!r) return;
+  const numRooms = r.slots[0]?.length || 2;
+  const roomHeaders = Array.from({length: numRooms}, (_, i) => `<th>교실 ${String.fromCharCode(65+i)}</th>`).join('');
+
+  const rows = r.slots.map((row, pi) => {
+    const cells = row.map(sid => {
+      const sub = sid ? subjectById(sid) : null;
+      return sub ? `<td><span style="background:${catColor(sub.category)};color:white;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600">${sub.name}</span></td>`
+                 : `<td><span style="color:var(--text-muted);font-size:11px">-</span></td>`;
+    }).join('');
+    return `<tr><td style="text-align:center;font-weight:600;background:#f8fafc;color:var(--text-muted)">${pi+1}교시</td>${cells}</tr>`;
+  }).join('');
+
+  // Scenario details for this timetable
+  const allProfiles = generateAllProfiles();
+  const profileCount = allProfiles.length;
+  const failedProfiles = [];
+  for (const p of allProfiles) {
+    const conflicts = checkProfileInSlots(r.slots, p.subjects);
+    if (conflicts.length > 0) {
+      const electives = p.subjects.filter(sid => {
+        const sub = subjectById(sid);
+        return sub && !['korean','english','math','pe','rne'].includes(sub.category);
+      }).map(sid => subjectById(sid)?.name || sid);
+      failedProfiles.push({ electives, conflicts });
+    }
+  }
+
+  const failHtml = failedProfiles.length === 0
+  ght);border-radius:6px;color:var(--success);font-weight:600">✅ 모든 시나리오 가능! (100%)</div>'
+    : `<div style="margin-top:10px;padding:8px;background:var(--warn-light);border-radius:6px;font-size:12px;max-height:200px;overflow-y:auto">
+        <strong style="color:var(--warn)">불가능 시나리오 (${failedProfiles.length}/${profileCount}):</strong><br>
+        ${failedProfiles.slice(0, 20).map(f => `[${f.electives.join(', ')}] → ${f.conflicts.map(c => subjectById(c.a)?.name + '↔' + subjectById(c.b)?.name).join(', ')}`).join('<br>')}
+        ${failedProfiles.length > 20 ? `<br><span class="text-muted">... 외 ${failedProfiles.length - 20}개</span>` : ''}
+      </div>`;
+
+  const ratePct = Math.round(r.rate * 100);
+  const html = `
+    <p style="margin-bottom:8px">시나리오 가능률: <strong style="color:${r.rate===1?'var(--success)':'var(--danger)'}; font-size:18px">${ratePct}%</strong>
+    <span class="text-muted">(${r.okCount}/${profileCount} 가능)</span></p>
+    <div style="overflow-x:auto">
+      <table class="ag-result-tt">
+        <thead><tr><th style="width:60px">교시</th>${roomHeaders}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${failHtml}
+    ${r.topHotspots.length ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)"><strong>충돌 핫스팟:</strong> ${r.topHotspots.join(' / ')}</div>` : ''}
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="applyBfResult(${idx});closeModal()">📋 이 시간표 적용</button>
+      <button class="btn btn-ghost" onclick="closeModal()">닫기</button>
+    </div>`;
+  openModal(`시간표 #${idx+1} 시나리오 분석 (가능률 ${ratePct}%)`, html);
+}
+
+function applyBfResult(idx) {
+  const r = _bfResults[idx];
+  if (!r) return;
+  if (r.slots[0]?.length !== STATE.classrooms.length || r.slots.length !== STATE.slots.length) {
+    alert('현재 설정과 구조가 다릅니다.'); return;
+  }
+  STATE.slots = r.slots.map(row => [...row]);
+  saveState();
+  lastSimResult = null;
+  renderAll();
+  document.querySelector('[data-panel="timetable"]').click();
+  alert(`시간표 #${idx+1} (가능률 ${Math.round(r.rate*100)}%) 적용 완료!`);
+}
+
+// =====================================================
+// RENDER ALL
+// =====================================================
+function renderAll() {
+  renderTimetable();
+  if (document.getElementById('panel-edit').classList.contains('active')) renderEditPanel();
+  if (STATE.students.length) renderStudents();
+  if (lastSimResult) runSimulation();
+}
+
+// =====================================================
+// BOOT
+// =====================================================
+renderAll();
+</script>
+</body>
+</html>
