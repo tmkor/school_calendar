@@ -246,16 +246,17 @@ select:focus, input:focus { outline: 2px solid var(--primary); }
     <button class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4)" onclick="exportData()">💾 내보내기</button>
     <label class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4);cursor:pointer">📂 가져오기<input type="file" accept=".json" style="display:none" onchange="importData(event)"></label>
     <button class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4)" onclick="resetData()">↺ 초기화</button>
+    <a href="https://github.com/tmkor/school_calendar" target="_blank" class="btn btn-ghost" style="color:white;border-color:rgba(255,255,255,.4);text-decoration:none">📖 매뉴얼</a>
   </div>
   <div id="main">
     <div id="tabs">
-      <button class="tab-btn active" data-panel="timetable">📋 시간표 배치</button>
-      <button class="tab-btn" data-panel="scenarios">🔬 시나리오 분석</button>
-      <button class="tab-btn" data-panel="bruteforce">🔎 전수 시간표 탐색</button>
-      <button class="tab-btn" data-panel="students">👥 학생 관리</button>
-      <button class="tab-btn" data-panel="suggest">💡 자동 개선 제안</button>
-      <button class="tab-btn" data-panel="autogen">🤖 자동 시간표 생성</button>
-      <button class="tab-btn" data-panel="edit">✏️ 데이터 편집</button>
+      <button class="tab-btn" data-panel="edit">① 데이터 편집</button>
+      <button class="tab-btn" data-panel="students">② 학생 관리</button>
+      <button class="tab-btn" data-panel="autogen">③ 자동 생성</button>
+      <button class="tab-btn active" data-panel="timetable">④ 시간표 배치</button>
+      <button class="tab-btn" data-panel="scenarios">⑤ 시나리오 분석</button>
+      <button class="tab-btn" data-panel="bruteforce">⑥ 전수 탐색</button>
+      <button class="tab-btn" data-panel="suggest">⑦ 개선 제안</button>
     </div>
     <div id="content">
 
@@ -1958,6 +1959,12 @@ function runGraphColoring() {
 
   displayAutoGenResult(slots, students, 'Graph Coloring (' + 
     {degree:'차수우선', saturation:'DSatur', weight:'가중치우선'}[strategy] + ')');
+
+  // 자동 적용
+  if (slots && !checkHardViolationsInSlots(slots)) {
+    window._autoGenResult = slots;
+    applyAutoGenSilent();
+  }
 }
 
 // =====================================================
@@ -2144,6 +2151,11 @@ async function runCSP() {
       }
     }
     displayAutoGenResult(slots, students, 'CSP 백트래킹 (정확해)');
+    // 자동 적용
+    if (slots && !checkHardViolationsInSlots(slots)) {
+      window._autoGenResult = slots;
+      applyAutoGenSilent();
+    }
   } else {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     let reason = '';
@@ -2456,6 +2468,15 @@ async function runAutoGen() {
   runBtn.disabled = false;
   document.getElementById('ag-progress').style.display = 'none';
   displayAutoGenResult(globalBest, students, 'Simulated Annealing' + (useGreedy ? ' + Greedy 초기해' : ''));
+
+  // 자동 적용: 하드 제약 위반이 없으면 바로 시간표에 반영
+  if (globalBest) {
+    const hasHardViol = checkHardViolationsInSlots(globalBest);
+    if (!hasHardViol) {
+      window._autoGenResult = globalBest;
+      applyAutoGenSilent();
+    }
+  }
 }
 
 function displayAutoGenResult(slots, students, algoName) {
@@ -2546,7 +2567,35 @@ function applyAutoGen() {
   lastSimResult = null;
   renderAll();
   document.querySelector('[data-panel="timetable"]').click();
-  alert('자동 생성 시간표가 적용되었습니다! 시간표 배치 탭에서 확인하세요.');
+  alert('자동 생성 시간표가 적용되었습니다!');
+}
+
+function applyAutoGenSilent() {
+  if (!window._autoGenResult) return;
+  const result = window._autoGenResult;
+  const numRooms = result[0]?.length || 2;
+  const numPeriods = result.length;
+  if (numRooms !== STATE.classrooms.length || numPeriods !== STATE.slots.length) return;
+  STATE.slots = result.map(row => [...row]);
+  saveState();
+  lastSimResult = null;
+  renderAll();
+  document.querySelector('[data-panel="timetable"]').click();
+}
+
+function checkHardViolationsInSlots(slots) {
+  for (const [a, b] of STATE.pairConstraints) {
+    const pa = periodOfInSlots(slots, a), pb = periodOfInSlots(slots, b);
+    if (pa !== null && pb !== null && pa === pb) return true;
+  }
+  for (const teacher of STATE.teachers) {
+    const seen = {};
+    for (const sid of teacher.subjectIds) {
+      const p = periodOfInSlots(slots, sid);
+      if (p !== null) { if (seen[p]) return true; seen[p] = true; }
+    }
+  }
+  return false;
 }
 
 // =====================================================

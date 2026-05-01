@@ -1,0 +1,25 @@
+╔══════════════════════════════════════════════════════════╗
+║  고교학점제 시간표 전수 분석 시뮬레이터 (Rust)          ║
+╚══════════════════════════════════════════════════════════╝
+
+Generated 60 elective profiles
+Section groups: 5 (2 options each, 32 combos per profile)
+
+━━━ BASE CASE: 2교실 × 10교시, 20과목 전수 탐색 ━━━
+Starting enumeration. First subject: 국어1 (18 valid partners)
+Enumeration complete. Total valid: 404790408
+Max feasible count: 16/60
+
+Base: total=404790408, max=26.7%, mean=12.8%, median=13.3%
+
+━━━ ALTERNATIVE SCENARIOS ━━━
+=== Alternative 1: 3 Classrooms ===
+3 Classrooms: 2000000 valid samples, max feasible: 24/60 (40.0%)
+=== Alternative 2: Common + Elective Timetable ===
+Common+Elective: 750 valid timetables, max feasible: 16/60 (26.7%)
+=== Alternative 3: 3 Sections per Group ===
+More Sections: 2000000 valid samples, max feasible: 54/60 (90.0%)
+=== Alternative 4: Reduced Electives (Science 택2) ===
+Reduced Electives: 404790408 valid, max: 40/60 (66.7%)
+
+═══ Done in 335.7s. JSON output on stdout. ═══
