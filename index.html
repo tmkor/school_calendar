@@ -577,6 +577,7 @@ const DEFAULT_DATA = {
   classrooms: [
     { id: 'rm_a', name: '교실 A' },
     { id: 'rm_b', name: '교실 B' },
+    { id: 'rm_c', name: '이음온' },
   ],
   // slots[period-1][classroomIdx] = subjectId | null
   // slots: 10 periods × 2 classrooms
@@ -591,9 +592,9 @@ const DEFAULT_DATA = {
   ],
   // Choice rules
   choiceRules: [
-    { id: 'r_liberal',   label: '교양 택1',         options: ['lib1','lib2'],              count: 1 },
+    { id: 'r_liberal',   label: '교양 택1',         options: ['lib1','lib2','lib3','lib4'],              count: 1 },
     { id: 'r_science',   label: '과학 택3',          options: ['phy','che','bio','ear','inf'], count: 3 },
-    { id: 'r_hum',       label: '인문/수학 택1',     options: ['read','geo','soc'],          count: 1 },
+    { id: 'r_hum',       label: '인문/수학 택1',     options: ['read', 'engcul', 'eth', 'jap', 'geo1', 'geo2'],          count: 1 },
   ],
   // Section groups (분반): 학생은 각 그룹에서 1개를 이수하되, 어느 분반인지는 시간표에 따라 유연하게 결정
   sectionGroups: [
@@ -2404,19 +2405,24 @@ async function runAutoGen() {
 
   function randInt(n) { return Math.floor(Math.random() * n); }
 
+  const numPeriods = STATE.slots.length;
+  const numClassrooms = STATE.classrooms.length;
+
   function randomSlots() {
     const arr = [...subjectIds];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = randInt(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    return Array.from({length: 10}, (_, i) => [arr[i*2] || null, arr[i*2+1] || null]);
+    return Array.from({length: numPeriods}, (_, i) =>
+      Array.from({length: numClassrooms}, (_, j) => arr[i * numClassrooms + j] || null)
+    );
   }
 
   // Use Greedy Coloring initial solution if checkbox checked
   const useGreedy = document.getElementById('ag-use-greedy')?.checked;
   function initialSlots() {
     if (useGreedy) {
-      return greedyColoring(students, 10, STATE.classrooms.length, 'saturation');
+      return greedyColoring(students, numPeriods, numClassrooms, 'saturation');
     }
     return randomSlots();
   }
@@ -2425,7 +2431,7 @@ async function runAutoGen() {
   let globalBestScore = Infinity;
 
   for (let r = 0; r < restarts; r++) {
-    let slots = r === 0 ? initialSlots() : (useGreedy && r < 3 ? greedyColoring(students, 10, STATE.classrooms.length, ['saturation','degree','weight'][r % 3]) : randomSlots());
+    let slots = r === 0 ? initialSlots() : (useGreedy && r < 3 ? greedyColoring(students, numPeriods, numClassrooms, ['saturation','degree','weight'][r % 3]) : randomSlots());
     let score = scoreSlots(slots, students);
     let localBest = slots.map(row => [...row]);
     let localBestScore = score;
@@ -2433,8 +2439,8 @@ async function runAutoGen() {
     const coolingRate = Math.exp(Math.log(0.01) / iters); // temp → 1% at end
 
     for (let i = 0; i < iters; i++) {
-      const p1 = randInt(10), c1 = randInt(2);
-      const p2 = randInt(10), c2 = randInt(2);
+      const p1 = randInt(numPeriods), c1 = randInt(numClassrooms);
+      const p2 = randInt(numPeriods), c2 = randInt(numClassrooms);
       if (p1 === p2 && c1 === c2) continue;
 
       const tmp = slots[p1][c1];
@@ -2855,11 +2861,7 @@ function saveSubject(id) {
 
 function openAddSubject() {
   const html = `
-  if (STATE.pairGroups) STATE.pairGroups.forEach(g => g.options = g.options.filter(x => x !== id));
-  if (STATE.sectionGroups) {
-    STATE.sectionGroups.forEach(g => g.options = g.options.filter(x => x !== id));
-    STATE.sectionGroups = STATE.sectionGroups.filter(g => g.options.length >= 2);
-  }aceholder="과목명"></div>
+    <div class="edit-row"><label>과목명</label><input type="text" id="as-name" placeholder="과목명"></div>
     <div class="edit-row"><label>카테고리</label><select id="as-cat">
       ${['korean','english','math','pe','rne','science','humanities','liberal'].map(c=>`<option value="${c}">${catLabel(c)}</option>`).join('')}
     </select></div>
