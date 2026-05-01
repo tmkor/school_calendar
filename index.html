@@ -3576,7 +3576,7 @@ function previewBfResult(idx) {
   }
 
   const failHtml = failedProfiles.length === 0
-  ght);border-radius:6px;color:var(--success);font-weight:600">✅ 모든 시나리오 가능! (100%)</div>'
+    ? '<div style="margin-top:10px;padding:8px;background:var(--success-light);border-radius:6px;color:var(--success);font-weight:600">✅ 모든 시나리오 가능! (100%)</div>'
     : `<div style="margin-top:10px;padding:8px;background:var(--warn-light);border-radius:6px;font-size:12px;max-height:200px;overflow-y:auto">
         <strong style="color:var(--warn)">불가능 시나리오 (${failedProfiles.length}/${profileCount}):</strong><br>
         ${failedProfiles.slice(0, 20).map(f => `[${f.electives.join(', ')}] → ${f.conflicts.map(c => subjectById(c.a)?.name + '↔' + subjectById(c.b)?.name).join(', ')}`).join('<br>')}
